@@ -5,12 +5,12 @@ import toast from "react-hot-toast";
 export const useWebRTC = (currentUserId) => {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
-  const [callStatus, setCallStatus] = useState("idle"); // idle, calling, connected
+  const [callStatus, setCallStatus] = useState("idle"); // idle, calling, connecting, connected
+  const [isMuted, setIsMuted] = useState(false); // 🛡️ NEW: Hardware Mute State
   
   const peerConnection = useRef(null);
   const currentCallTarget = useRef(null);
 
-  // 🛡️ ARCHITECTURAL UPGRADE: Google's Free STUN Servers for NAT Traversal
   const rtcConfig = {
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
@@ -18,36 +18,43 @@ export const useWebRTC = (currentUserId) => {
     ]
   };
 
-  // ─────────────────────────────────────────────
-  // 1️⃣ CORE: Initialize Peer Connection & Media
-  // ─────────────────────────────────────────────
+  // 🛡️ ARCHITECTURAL UPGRADE: Anti-Refresh Safety Net
+  // Warns the user if they try to close or refresh the tab during an active call
+  useEffect(() => {
+    if (callStatus === "idle") return;
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "You have an active call. Are you sure you want to leave?";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [callStatus]);
+
   const initWebRTC = async (targetUserId) => {
     currentCallTarget.current = targetUserId;
     
-    // 1. Get Microphone Permissions
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       setLocalStream(stream);
+      setIsMuted(false); // Reset mute state on new call
     } catch (err) {
       toast.error("Microphone access denied!");
       throw err;
     }
 
-    // 2. Create the P2P Connection
     const pc = new RTCPeerConnection(rtcConfig);
     peerConnection.current = pc;
 
-    // 3. Add our microphone audio to the connection
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-    // 4. Listen for the other person's audio arriving
     pc.ontrack = (event) => {
       setRemoteStream(event.streams[0]);
       setCallStatus("connected");
     };
 
-    // 5. When our browser finds its public IP, send it to the other user via Socket
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         const socket = getSocket();
@@ -61,9 +68,6 @@ export const useWebRTC = (currentUserId) => {
     return pc;
   };
 
-  // ─────────────────────────────────────────────
-  // 2️⃣ CALLER LOGIC: Create the Offer
-  // ─────────────────────────────────────────────
   const initiateCall = async (targetUserId) => {
     try {
       setCallStatus("calling");
@@ -83,9 +87,6 @@ export const useWebRTC = (currentUserId) => {
     }
   };
 
-  // ─────────────────────────────────────────────
-  // 3️⃣ RECEIVER LOGIC: Answer the Call
-  // ─────────────────────────────────────────────
   const acceptCall = async (callerId, incomingOfferSdp) => {
     try {
       setCallStatus("connecting");
@@ -106,9 +107,17 @@ export const useWebRTC = (currentUserId) => {
     }
   };
 
-  // ─────────────────────────────────────────────
-  // 4️⃣ MEMORY LEAK PREVENTION: Cleanup
-  // ─────────────────────────────────────────────
+  // 🛡️ ARCHITECTURAL UPGRADE: Hardware Microphone Control
+  const toggleMute = () => {
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled; // Physically cuts the mic
+        setIsMuted(!audioTrack.enabled);
+      }
+    }
+  };
+
   const cleanupCall = () => {
     if (peerConnection.current) {
       peerConnection.current.close();
@@ -120,24 +129,20 @@ export const useWebRTC = (currentUserId) => {
     setLocalStream(null);
     setRemoteStream(null);
     setCallStatus("idle");
+    setIsMuted(false);
     currentCallTarget.current = null;
   };
 
-  // ─────────────────────────────────────────────
-  // 5️⃣ SOCKET EVENT LISTENERS
-  // ─────────────────────────────────────────────
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
 
-    // Caller receives the Answer
     const handleAnswer = async ({ sdp }) => {
       if (peerConnection.current) {
         await peerConnection.current.setRemoteDescription(new RTCSessionDescription(sdp));
       }
     };
 
-    // Both users receive ICE Candidates (Network paths)
     const handleIceCandidate = async ({ candidate }) => {
       if (peerConnection.current) {
         try {
@@ -161,6 +166,8 @@ export const useWebRTC = (currentUserId) => {
     localStream,
     remoteStream,
     callStatus,
+    isMuted,
+    toggleMute, // Exported so CallOverlay can use it
     initiateCall,
     acceptCall,
     cleanupCall

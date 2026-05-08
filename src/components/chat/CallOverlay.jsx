@@ -1,10 +1,10 @@
 import { createPortal } from "react-dom";
 import { Avatar } from "../ui/Avatar";
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion"; // 🛡️ UPGRADE: Liquid Motion Physics
+import { motion, AnimatePresence } from "framer-motion";
 
 /* ─────────────────────────────────────────────
-   SVG ICON PRIMITIVES  (Preserved from your code)
+   SVG ICON PRIMITIVES 
 ───────────────────────────────────────────── */
 const PhoneOff = ({ size = 24, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -42,7 +42,7 @@ const VolumeOff = ({ size = 20, className = "" }) => (
 );
 
 /* ─────────────────────────────────────────────
-   ANIMATED WAVEFORM — Powered by Framer Motion
+   ANIMATED WAVEFORM
 ───────────────────────────────────────────── */
 const SoundWave = () => {
   const bars = [0.4, 0.7, 1.0, 0.7, 0.4, 0.6, 0.9, 0.6, 0.4];
@@ -62,7 +62,7 @@ const SoundWave = () => {
 };
 
 /* ─────────────────────────────────────────────
-   PULSE RINGS — Powered by Framer Motion
+   PULSE RINGS
 ───────────────────────────────────────────── */
 const PulseRings = ({ color }) => (
   <>
@@ -94,7 +94,7 @@ function useCallTimer(active) {
 }
 
 /* ─────────────────────────────────────────────
-   ROUND ACTION BUTTON — Powered by Framer Motion
+   ROUND ACTION BUTTON
 ───────────────────────────────────────────── */
 const ActionBtn = ({ onClick, color, hoverColor, label, children, pulse = false, large = false }) => (
   <div className="flex flex-col items-center gap-2">
@@ -129,13 +129,14 @@ function CallOverlay({
   chatImage,
   callStatus,
   remoteStream,
+  isMuted,            // 🛡️ RECEIVED FROM CHATVIEW
+  onToggleMute,       // 🛡️ RECEIVED FROM CHATVIEW
   onAccept,
   onDecline,
   onCancel,
   onEndCall,
 }) {
   const audioRef = useRef(null);
-  const [muted, setMuted] = useState(false);
   const [speakerOff, setSpeakerOff] = useState(false);
   const timer = useCallTimer(callStatus === "connected");
 
@@ -146,7 +147,7 @@ function CallOverlay({
     }
   }, [remoteStream]);
 
-  /* Mute controls */
+  /* Speaker Off/On (Mutes the incoming HTML audio element on Web) */
   useEffect(() => {
     if (audioRef.current) audioRef.current.muted = speakerOff;
   }, [speakerOff]);
@@ -156,6 +157,8 @@ function CallOverlay({
 
   const isConnected = callStatus === "connected";
   const isIncoming = !!incomingCall;
+  
+  // 🛡️ THE CALLER ID FIX: Displays the name correctly whether we are receiving or dialing
   const callerLabel = isIncoming ? incomingCall.callerName : chatName;
 
   /* ── Status pill copy ── */
@@ -213,7 +216,6 @@ function CallOverlay({
           minWidth: 320,
         }}
       >
-        {/* Top decorative divider line */}
         <div
           className="absolute top-0 left-1/2 -translate-x-1/2 transition-colors duration-700"
           style={{
@@ -227,7 +229,6 @@ function CallOverlay({
         <div className="relative flex items-center justify-center mb-8" style={{ width: 128, height: 128 }}>
           {!isConnected && <PulseRings color={ringColor} />}
 
-          {/* Static glow ring */}
           <div
             className="absolute inset-0 rounded-full transition-colors duration-700"
             style={{
@@ -249,7 +250,6 @@ function CallOverlay({
             }}
           />
 
-          {/* Connected green dot */}
           <AnimatePresence>
             {isConnected && (
               <motion.div
@@ -297,10 +297,10 @@ function CallOverlay({
           >
             {[
               {
-                label: muted ? "Unmute" : "Mute",
-                active: muted,
+                label: isMuted ? "Unmute" : "Mute",
+                active: isMuted,
                 icon: <MicOff size={18} />,
-                onClick: () => setMuted((m) => !m), // Note: True mic mute requires editing localStream tracks
+                onClick: onToggleMute, // 🛡️ Calls the physical hardware toggle in useWebRTC.js
               },
               {
                 label: speakerOff ? "Speaker Off" : "Speaker On",

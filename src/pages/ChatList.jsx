@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import ChatItem from "../components/chat/ChatItem"; 
 import ChatListHeader from "../components/chat/ChatListHeader";
 import CreateGroupModal from "../components/chat/CreateGroupModal";
-import SearchUserModal from "../components/chat/SearchUserModal"; // 🛡️ Import Search Modal
+import SearchUserModal from "../components/chat/SearchUserModal"; 
 import { getChats } from "../services/chat.api";
 import { getSocket } from "../services/socket"; 
 
@@ -10,7 +10,7 @@ function ChatList() {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); // 🛡️ Search State
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); 
   
   const currentUserId = localStorage.getItem("userId");
 
@@ -49,10 +49,8 @@ function ChatList() {
     return () => socket.off("message_received", handleNewMessage);
   }, []);
 
-  // Handle both Group Creation and 1-on-1 Chat Creation
   const handleChatCreated = (newChat) => {
     setChats((prevChats) => {
-      // Prevent duplicates if the user clicked an existing chat in search
       const exists = prevChats.find((c) => String(c._id) === String(newChat._id));
       if (exists) return prevChats;
       return [newChat, ...prevChats];
@@ -61,6 +59,17 @@ function ChatList() {
 
   return (
     <div className="h-full flex flex-col relative bg-surface border-r border-borderSubtle">
+      
+      {/* 🛡️ ARCHITECTURAL UPGRADE: Native Mobile App Header */}
+      <div className="md:hidden flex items-center justify-between px-6 py-4 bg-background border-b border-borderSubtle z-20 shadow-sm">
+        <h1 className="text-xl font-bold text-textPrimary tracking-tight flex items-center gap-3">
+          <div className="w-8 h-8 bg-accent text-white rounded-lg flex items-center justify-center font-bold shadow-md">
+            P
+          </div>
+          PulseChat
+        </h1>
+      </div>
+
       <ChatListHeader 
         onOpenGroupModal={() => setIsGroupModalOpen(true)} 
         onOpenSearchModal={() => setIsSearchModalOpen(true)} 
@@ -68,7 +77,18 @@ function ChatList() {
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {loading ? (
-          <p className="p-4 text-textMuted text-sm animate-pulse">Loading conversations...</p>
+          <div className="p-4 space-y-4">
+            {/* Noir Glass Skeleton Loaders */}
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex items-center gap-3 animate-pulse">
+                <div className="w-12 h-12 bg-borderSubtle rounded-full flex-shrink-0"></div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-borderSubtle rounded w-1/3"></div>
+                  <div className="h-2 bg-borderSubtle rounded w-2/3"></div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : chats.length === 0 ? (
           <div className="p-8 text-center flex flex-col items-center justify-center h-full">
             <span className="text-4xl mb-4">👋</span>
@@ -76,7 +96,7 @@ function ChatList() {
             <p className="text-textMuted text-sm mb-6">You have no active conversations.</p>
             <button 
               onClick={() => setIsSearchModalOpen(true)}
-              className="bg-accent hover:bg-accent/90 text-white px-6 py-2 rounded-full text-sm font-medium transition-colors"
+              className="bg-accent hover:bg-accentHover text-white px-6 py-2 rounded-full text-sm font-medium transition-colors"
             >
               Find someone to chat with
             </button>
@@ -113,7 +133,6 @@ function ChatList() {
         onGroupCreated={handleChatCreated}
       />
 
-      {/* 🛡️ Inject Search Modal */}
       <SearchUserModal 
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}

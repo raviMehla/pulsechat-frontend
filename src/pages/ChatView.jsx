@@ -59,7 +59,7 @@ function ChatView() {
   const [isCalling, setIsCalling] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
   const [incomingOffer, setIncomingOffer] = useState(null); // Catches the WebRTC SDP
-  const { localStream, remoteStream, callStatus, initiateCall, acceptCall, cleanupCall } = useWebRTC(currentUserId);
+  const { localStream, remoteStream, callStatus, isMuted, toggleMute, initiateCall, acceptCall, cleanupCall } = useWebRTC(currentUserId);
 
   const otherUserIdRef = useRef(null);
 
@@ -368,11 +368,15 @@ function ChatView() {
     if (!otherUserIdRef.current) return;
     setIsCalling(true);
     
+    // 🛡️ THE FIX: Grab our actual name from localStorage so the receiver knows who is calling!
+    const myUserString = localStorage.getItem("user");
+    const myName = myUserString ? JSON.parse(myUserString).name : "Someone";
+
     // 1. Ring the UI
     getSocket().emit("call_user", {
       userToCall: otherUserIdRef.current,
       from: currentUserId,
-      callerName: chatName
+      callerName: myName // <--- We now send OUR name, not the chatName
     });
 
     // 2. Start WebRTC (Asks for Mic, generates Offer)
@@ -564,6 +568,8 @@ function ChatView() {
         chatImage={chatImage}
         callStatus={callStatus}
         remoteStream={remoteStream}
+        isMuted={isMuted}             // 🛡️ Pass Mute State
+        onToggleMute={toggleMute}     // 🛡️ Pass Hardware Toggle
         onAccept={handleAcceptCall}
         onDecline={handleDeclineCall}
         onCancel={handleCancelCall}
