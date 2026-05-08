@@ -1,0 +1,37 @@
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 🌌 NOIR GLASS: Background Layers */
+    --bg-primary: #0B0B0F;      /* The Void (App Shell) */
+    --bg-surface: #131318;      /* Surface Layer (Sidebar, Modals) */
+    --bg-card: #1A1A22;         /* Card Layer (Chat bubbles, interactive elements) */
+    
+    /* 📝 NOIR GLASS: Typography */
+    --text-primary: #F0EFF8;    /* High emphasis text */
+    --text-muted: #9290A8;      /* Low emphasis text (Bio, Subtitles) */
+    
+    /* ⚡ NOIR GLASS: Accents & States */
+    --accent-primary: #7C6EF7;  /* Electric Indigo (Brand color / Actions) */
+    --accent-hover: #5048C8;    /* Pressed/Dark accent */
+    --status-success: #5DD6B0;  /* Mint Teal (Read receipts) */
+    --status-danger: #F76E6E;   /* Destructive actions */
+    --status-online: #5DD6B0;   /* Mint Teal (Online indicator) */
+    
+    /* 🏗️ NOIR GLASS: Structural */
+    --border-subtle: #2A2A36;   /* Dividers, borders */
+  }
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  /* 🛡️ ARCHITECTURAL UPGRADE: Satoshi is now the default font */
+  font-family: 'Satoshi', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
