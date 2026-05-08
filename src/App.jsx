@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useEffect } from "react";
-import {Toaster} from "react-hot-toast";
+import { Toaster } from "react-hot-toast";
 
 // Layouts & Security
 import AppLayout from "./components/common/AppLayout";
@@ -11,8 +11,9 @@ import ChatView from "./pages/ChatView";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
-import Register from "./pages/Register"; // 🟢 Prepared for auth expansion
-import Welcome from "./pages/Welcome";   // 🟢 Default platform entry screen
+import Register from "./pages/Register"; 
+import Welcome from "./pages/Welcome";   
+import Landing from "./pages/Landing"; // 🛡️ NEW: The Front Door
 
 // Socket Integration
 import { socket, disconnectSocket } from "./services/socket"; 
@@ -25,31 +26,45 @@ function App() {
     // 1. Only establish the WebSocket connection if the user is securely authenticated.
     if (currentUserId && token) {
       
-      // Inject the current token right before connecting
       socket.auth = { token }; 
       socket.connect();
 
-      // Setup connection loggers
       const onConnect = () => console.log("🟢 Global Socket connected:", socket.id);
       const onDisconnect = (reason) => console.warn("🔴 Global Socket disconnected:", reason);
 
       socket.on("connect", onConnect);
       socket.on("disconnect", onDisconnect);
 
-      // 2. Cleanup Function: Destroys the socket connection when the App unmounts
+      // 🛡️ ARCHITECTURAL UPGRADE: The Mobile Foreground Resiliency Engine
+      // Forces the socket to instantly reconnect the millisecond the user unlocks their phone
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === "visible") {
+          console.log("📱 App returned to foreground. Checking socket health...");
+          if (socket.disconnected) {
+            console.log("⚡ Socket was dead. Forcing instant reconnection...");
+            socket.connect();
+          }
+        }
+      };
+
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
+      // 2. Cleanup Function
       return () => {
         socket.off("connect", onConnect);
         socket.off("disconnect", onDisconnect);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
         disconnectSocket();
       };
     }
-  }, [currentUserId, token]); // The connection relies on these credentials existing
+  }, [currentUserId, token]); 
 
   return (
     <>
     <Toaster position="top-right" reverseOrder={false} />
     <Routes>
-      {/* Public Routes */}
+      {/* 🛡️ Public Routes */}
+      <Route path="/landing" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 

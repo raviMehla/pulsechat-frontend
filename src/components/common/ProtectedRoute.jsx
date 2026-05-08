@@ -4,7 +4,9 @@ function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
 
   if (!token) {
-    return <Navigate to="/login" />;
+    // 🛡️ ARCHITECTURAL UPGRADE: Redirect unauthenticated users to the new Front Door
+    // The 'replace' prop ensures this redirect doesn't clutter their browser history
+    return <Navigate to="/landing" replace />;
   }
 
   return children;
