@@ -58,7 +58,6 @@ function ChatView() {
   // WebRTC Call States
   const [isCalling, setIsCalling] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
-  const [incomingOffer, setIncomingOffer] = useState(null); // Catches the WebRTC SDP
   const { localStream, remoteStream, callStatus, isMuted, toggleMute, initiateCall, acceptCall, cleanupCall } = useWebRTC(currentUserId);
 
   const otherUserIdRef = useRef(null);
@@ -112,7 +111,7 @@ function ChatView() {
 
         try {
           const myProfile = await getMyProfile();
-          if (myProfile.blockedUsers?.includes(other._id)) {
+          if (myProfile.blockedUsers?.some(u => String(u._id || u) === String(other._id))) {
             setIsBlockedByMe(true);
           }
         } catch (profileErr) {
@@ -170,9 +169,6 @@ function ChatView() {
 
     socket.on("incoming_call", (data) => setIncomingCall(data));
 
-    // 🛡️ NEW: Catch the SDP Offer in the background while the phone rings
-    socket.on("webrtc_offer", (data) => setIncomingOffer(data.sdp));
-
     socket.on("call_rejected", () => {
       setIsCalling(false);
       cleanupCall(); // Free mic
@@ -187,7 +183,6 @@ function ChatView() {
 
     return () => {
       socket.off("incoming_call");
-      socket.off("webrtc_offer");
       socket.off("call_rejected");
       socket.off("call_cancelled");
     };
@@ -372,23 +367,25 @@ function ChatView() {
     const myUserString = localStorage.getItem("user");
     const myName = myUserString ? JSON.parse(myUserString).name : "Someone";
 
-    // 1. Ring the UI
+    // 1. Ring the UI (Phase 1 call_user)
     getSocket().emit("call_user", {
       userToCall: otherUserIdRef.current,
       from: currentUserId,
-      callerName: myName // <--- We now send OUR name, not the chatName
+      callerName: myName,
+      type: "audio",
+      chatId: id
     });
 
-    // 2. Start WebRTC (Asks for Mic, generates Offer)
+    // 2. Start WebRTC call state
     initiateCall(otherUserIdRef.current);
   };
 
   const handleAcceptCall = () => {
-    if (!incomingOffer) return toast.error("Connection error: No secure offer received.");
+    if (!incomingCall) return;
     toast.success("Connecting securely...");
     
-    // 🔥 Answer WebRTC (Asks for Mic, generates Answer, begins Audio stream!)
-    acceptCall(incomingCall.from, incomingOffer);
+    // 🔥 Accept Call (emits accept_call, caller generates offer)
+    acceptCall(incomingCall.from);
   };
 
   const handleEndCall = () => {

@@ -106,6 +106,12 @@ function Login() {
             required 
           />
 
+          <div className="flex justify-end text-xs -mt-2">
+            <Link to="/forgot-password" className="text-accent font-medium hover:underline transition-all">
+              Forgot password?
+            </Link>
+          </div>
+
           {/* Submit Button */}
           <Button 
             type="submit" 

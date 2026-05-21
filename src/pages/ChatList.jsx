@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import ChatItem from "../components/chat/ChatItem"; 
 import ChatListHeader from "../components/chat/ChatListHeader";
 import CreateGroupModal from "../components/chat/CreateGroupModal";
@@ -13,6 +14,7 @@ function ChatList() {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); 
   
   const currentUserId = localStorage.getItem("userId");
+  const location = useLocation();
 
   useEffect(() => {
     const fetchChats = async () => {
@@ -32,22 +34,62 @@ function ChatList() {
     const socket = getSocket();
     if (!socket) return;
 
+    // Extract active chatId from URL path if any
+    const activeChatId = location.pathname.startsWith("/chat/") 
+      ? location.pathname.split("/chat/")[1] 
+      : null;
+
     const handleNewMessage = (newMessage) => {
       setChats((prevChats) => {
         const chatId = String(newMessage.chat._id || newMessage.chat);
         const chatExists = prevChats.find((c) => String(c._id) === chatId);
+        const isCurrentChat = activeChatId === chatId;
 
         if (chatExists) {
-          const updatedChat = { ...chatExists, lastMessage: newMessage };
+          const updatedChat = { 
+            ...chatExists, 
+            lastMessage: newMessage,
+            unreadCount: isCurrentChat ? 0 : (chatExists.unreadCount || 0) + 1
+          };
           return [updatedChat, ...prevChats.filter((c) => String(c._id) !== chatId)];
+        } else if (newMessage.chat && typeof newMessage.chat === "object") {
+          const newChat = { 
+            ...newMessage.chat, 
+            lastMessage: newMessage,
+            unreadCount: isCurrentChat ? 0 : 1
+          };
+          return [newChat, ...prevChats];
         }
         return prevChats;
       });
     };
 
+    const handleGroupUpdated = (updatedChat) => {
+      setChats((prevChats) =>
+        prevChats.map((c) =>
+          String(c._id) === String(updatedChat._id)
+            ? { ...c, ...updatedChat }
+            : c
+        )
+      );
+    };
+
+    const handleGroupDeletedOrKicked = ({ chatId: eventChatId }) => {
+      setChats((prevChats) => prevChats.filter((c) => String(c._id) !== String(eventChatId)));
+    };
+
     socket.on("message_received", handleNewMessage);
-    return () => socket.off("message_received", handleNewMessage);
-  }, []);
+    socket.on("group_updated", handleGroupUpdated);
+    socket.on("group_deleted", handleGroupDeletedOrKicked);
+    socket.on("kicked_from_group", handleGroupDeletedOrKicked);
+
+    return () => {
+      socket.off("message_received", handleNewMessage);
+      socket.off("group_updated", handleGroupUpdated);
+      socket.off("group_deleted", handleGroupDeletedOrKicked);
+      socket.off("kicked_from_group", handleGroupDeletedOrKicked);
+    };
+  }, [location.pathname]);
 
   const handleChatCreated = (newChat) => {
     setChats((prevChats) => {

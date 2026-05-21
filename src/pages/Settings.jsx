@@ -20,6 +20,11 @@ function Settings() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRevoking, setIsRevoking] = useState(false); // 🛡️ New State for Sessions
 
+  // Support Ticket States
+  const [supportCategory, setSupportCategory] = useState("Bug Report");
+  const [supportDescription, setSupportDescription] = useState("");
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+
   // Deletion Pipeline States
   const [deletionPhase, setDeletionPhase] = useState(1); 
   const [password, setPassword] = useState("");
@@ -126,6 +131,29 @@ function Settings() {
     }
   };
 
+  const handleSubmitTicket = async (e) => {
+    e.preventDefault();
+    if (!supportDescription.trim()) {
+      return toast.error("Please provide a description for the support ticket.");
+    }
+    try {
+      setIsSubmittingTicket(true);
+      toast.loading("Submitting support ticket...", { id: "support-toast" });
+      const res = await api.post("/support/ticket", {
+        category: supportCategory,
+        description: supportDescription.trim()
+      });
+      toast.success(res.data.message || `Support ticket #${res.data.ticketId} submitted.`, { id: "support-toast" });
+      setSupportDescription("");
+      setSupportCategory("Bug Report");
+    } catch (error) {
+      console.error("Support Ticket Error:", error);
+      toast.error(error.response?.data?.message || "Failed to submit support ticket.", { id: "support-toast" });
+    } finally {
+      setIsSubmittingTicket(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-background text-textPrimary overflow-y-auto custom-scrollbar">
       <div className="max-w-3xl w-full mx-auto p-6 lg:p-10 flex-1 animate-fadeIn">
@@ -177,6 +205,48 @@ function Settings() {
             >
               {isExporting ? "Compiling Data..." : "Download Backup"}
             </Button>
+          </div>
+
+          {/* --- HELP & SUPPORT SECTION --- */}
+          <div className="bg-surface p-6 rounded-xl border border-borderSubtle shadow-sm">
+            <h3 className="text-lg font-semibold mb-1">Help & Support</h3>
+            <p className="text-sm text-textMuted mb-6">
+              Encountering a bug or need help? Submit a support ticket and our team will look into it.
+            </p>
+            <form onSubmit={handleSubmitTicket} className="space-y-4">
+              <div>
+                <label className="text-xs text-textMuted uppercase tracking-wider mb-1 block">Category</label>
+                <select
+                  value={supportCategory}
+                  onChange={(e) => setSupportCategory(e.target.value)}
+                  className="w-full bg-background border border-borderSubtle rounded-md py-2.5 px-3 text-sm text-textPrimary outline-none focus:border-accent transition-colors"
+                >
+                  <option value="Bug Report">Bug Report</option>
+                  <option value="Account Issue">Account Issue</option>
+                  <option value="Feature Request">Feature Request</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-textMuted uppercase tracking-wider mb-1 block">Description</label>
+                <textarea
+                  value={supportDescription}
+                  onChange={(e) => setSupportDescription(e.target.value)}
+                  rows="3"
+                  placeholder="Describe your issue or request in detail..."
+                  className="w-full bg-background border border-borderSubtle rounded-md py-2 px-3 text-sm text-textPrimary outline-none focus:border-accent transition-colors resize-none placeholder-textMuted/50"
+                  required
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={isSubmittingTicket}
+                variant="primary"
+                className="w-full"
+              >
+                {isSubmittingTicket ? "Submitting..." : "Submit Ticket"}
+              </Button>
+            </form>
           </div>
 
           {/* --- ACCOUNT DELETION SECTION --- */}

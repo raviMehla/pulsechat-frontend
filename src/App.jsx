@@ -14,6 +14,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register"; 
 import Welcome from "./pages/Welcome";   
 import Landing from "./pages/Landing"; // 🛡️ NEW: The Front Door
+import ForgotPassword from "./pages/ForgotPassword";
 
 // Socket Integration
 import { socket, disconnectSocket } from "./services/socket"; 
@@ -67,6 +68,7 @@ function App() {
       <Route path="/landing" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* Authenticated Application Boundary */}
       <Route

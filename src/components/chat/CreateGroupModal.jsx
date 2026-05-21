@@ -10,12 +10,26 @@ function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [groupAvatar, setGroupAvatar] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [description, setDescription] = useState("");
 
   if (!isOpen) return null;
 
   // =====================================
   // HANDLERS
   // =====================================
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image is too large. Max size is 5MB.");
+      return;
+    }
+    setGroupAvatar(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
   const handleSearch = async (query) => {
     setSearchQuery(query);
     if (!query.trim()) {
@@ -52,12 +66,15 @@ function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
     try {
       setIsLoading(true);
       const userIds = selectedUsers.map(u => u._id);
-      const newGroup = await createGroupChat(groupName, userIds);
+      const newGroup = await createGroupChat(groupName, userIds, groupAvatar, description);
       onGroupCreated(newGroup);
       setGroupName("");
       setSelectedUsers([]);
       setSearchQuery("");
       setSearchResults([]);
+      setGroupAvatar(null);
+      setAvatarPreview(null);
+      setDescription("");
       onClose();
     } catch (error) {
       console.error("Failed to create group:", error);
@@ -76,6 +93,26 @@ function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
       <div className="bg-bg border border-gray-800 p-6 rounded-lg w-full max-w-md shadow-2xl">
         <h2 className="text-xl font-bold text-textPrimary mb-4">Create Group Chat</h2>
         
+        {/* Avatar Upload */}
+        <div className="flex items-center gap-4 mb-4">
+          <div className="relative w-14 h-14 rounded-full bg-surface border border-gray-700 flex items-center justify-center overflow-hidden flex-none">
+            {avatarPreview ? (
+              <img src={avatarPreview} alt="Group Avatar Preview" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-2xl text-gray-500">👥</span>
+            )}
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs font-semibold text-textPrimary mb-1">Group Avatar</label>
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleAvatarChange}
+              className="text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-surface file:text-textPrimary hover:file:bg-gray-800 cursor-pointer"
+            />
+          </div>
+        </div>
+
         {/* Group Name Input */}
         <input
           type="text"
@@ -83,6 +120,15 @@ function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
           value={groupName}
           onChange={(e) => setGroupName(e.target.value)}
           className="w-full bg-surface border border-gray-700 rounded-md py-2 px-3 text-sm text-textPrimary outline-none focus:border-accent transition-colors mb-4"
+        />
+
+        {/* Group Description Input */}
+        <textarea
+          placeholder="Group Description (Optional)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows="2"
+          className="w-full bg-surface border border-gray-700 rounded-md py-2 px-3 text-sm text-textPrimary outline-none focus:border-accent transition-colors mb-4 resize-none"
         />
 
         {/* Selected Users Chips */}

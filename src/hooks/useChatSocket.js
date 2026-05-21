@@ -118,6 +118,13 @@ export const useChatSocket = ({
       }
     };
 
+    const onGroupDeleted = ({ chatId: eventChatId }) => {
+      if (String(eventChatId) === String(chatId)) {
+        alert("This group has been deleted by the admin.");
+        navigate("/"); 
+      }
+    };
+
     // Register Listeners
     socket.on("message_received",  onMessageReceived);
     socket.on("typing",            onTyping);
@@ -131,6 +138,7 @@ export const useChatSocket = ({
     socket.on("message_deleted",   onMessageDeleted);
     socket.on("group_updated",     onGroupUpdated); 
     socket.on("kicked_from_group", onKickedFromGroup); 
+    socket.on("group_deleted",     onGroupDeleted); 
 
     // Cleanup
     return () => {
@@ -147,6 +155,7 @@ export const useChatSocket = ({
       socket.off("message_deleted",  onMessageDeleted);
       socket.off("group_updated",    onGroupUpdated); 
       socket.off("kicked_from_group", onKickedFromGroup); 
+      socket.off("group_deleted",     onGroupDeleted); 
     };
   }, [
     chatId, currentUserId, navigate, setMessages, setIsTyping, 

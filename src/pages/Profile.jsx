@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { disconnectSocket } from "../services/socket";
@@ -8,7 +8,8 @@ import {
   updateUserProfile, 
   updatePassword, 
   logoutAllDevices, 
-  toggleBlockUser 
+  toggleBlockUser,
+  getMyProfile
 } from "../services/user.api";
 
 // 🟢 UI Primitives
@@ -39,6 +40,25 @@ function Profile() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(initialUser.profilePic || null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    // 🛡️ Fetch fresh profile on mount to get populated fields
+    const fetchProfile = async () => {
+      try {
+        const freshUser = await getMyProfile();
+        setUser(freshUser);
+        localStorage.setItem("user", JSON.stringify(freshUser));
+        setFormData({
+          name: freshUser.name || "",
+          bio: freshUser.bio || ""
+        });
+        setPreviewUrl(freshUser.profilePic || null);
+      } catch (error) {
+        console.error("Failed to fetch fresh profile:", error);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   // ==========================================
   // HANDLERS
@@ -121,7 +141,7 @@ function Profile() {
       setUser(prev => {
         const updatedUser = {
           ...prev, 
-          blockedUsers: prev.blockedUsers.filter(id => id !== targetId)
+          blockedUsers: prev.blockedUsers.filter(u => (u._id || u) !== targetId)
         };
         localStorage.setItem("user", JSON.stringify(updatedUser));
         return updatedUser;
@@ -252,14 +272,27 @@ function Profile() {
               <p className="text-sm text-textMuted italic">You have not blocked any users.</p>
             ) : (
               <div className="space-y-3">
-                {user.blockedUsers.map((blockedUserId) => (
-                  <div key={blockedUserId} className="flex items-center justify-between p-3 bg-background border border-borderSubtle rounded-lg">
-                    <span className="text-sm text-textMuted font-mono">{blockedUserId}</span>
-                    <Button onClick={() => handleUnblock(blockedUserId)} variant="ghost" className="text-xs py-1 px-3">
-                      Unblock
-                    </Button>
-                  </div>
-                ))}
+                {user.blockedUsers.map((blockedUser) => {
+                  const blockedId = blockedUser._id || blockedUser;
+                  const displayName = blockedUser.name || "Blocked User";
+                  const usernameText = blockedUser.username ? `@${blockedUser.username}` : "";
+                  const avatarSrc = blockedUser.profilePic;
+
+                  return (
+                    <div key={blockedId} className="flex items-center justify-between p-3 bg-background border border-borderSubtle rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Avatar src={avatarSrc} alt={displayName} size="sm" />
+                        <div className="flex flex-col">
+                          <span className="text-sm text-textPrimary font-medium">{displayName}</span>
+                          {usernameText && <span className="text-xs text-textMuted">{usernameText}</span>}
+                        </div>
+                      </div>
+                      <Button onClick={() => handleUnblock(blockedId)} variant="ghost" className="text-xs py-1 px-3">
+                        Unblock
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

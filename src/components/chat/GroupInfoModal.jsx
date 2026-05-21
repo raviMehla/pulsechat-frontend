@@ -14,13 +14,25 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [groupAvatarFile, setGroupAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
 
   // Sync local state when the chat prop updates via sockets
   useEffect(() => {
     if (chat) {
       setGroupName(chat.chatName || "");
-      setGroupDesc(chat.description || ""); // Assuming 'description' is in your DB schema
+      setGroupDesc(chat.description || "");
+      setGroupAvatarFile(null);
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+      setAvatarPreview(null);
     }
+    return () => {
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+    };
   }, [chat]);
 
   if (!isOpen || !chat) return null;
@@ -31,13 +43,27 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
   // =====================================
   // HANDLERS
   // =====================================
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image is too large. Max size is 5MB.");
+      return;
+    }
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview);
+    }
+    setGroupAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
   const handleUpdateDetails = async () => {
     if (!groupName.trim()) return;
     try {
       setIsLoading(true);
-      // 🛡️ Passing both name and description to the backend
-      await updateGroupDetails(chat._id, { chatName: groupName, description: groupDesc });
-      // The backend emits "group_updated", socket listener handles the rest.
+      // 🛡️ Passing both name, description and group avatar file to the backend
+      await updateGroupDetails(chat._id, { chatName: groupName, description: groupDesc }, groupAvatarFile);
+      setGroupAvatarFile(null);
     } catch (error) {
       alert(error.response?.data?.message || "Failed to update group details");
     } finally {
@@ -120,7 +146,20 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
           
           {/* GROUP DETAILS SECTION */}
           <div className="flex flex-col items-center pb-4 border-b border-borderSubtle">
-            <Avatar src={chat.groupAvatar} alt={chat.chatName} size="xl" className="mb-4" />
+            <div className="relative mb-4 group w-16 h-16">
+              <Avatar src={avatarPreview || chat.groupAvatar} alt={chat.chatName} size="xl" />
+              {isAdmin && (
+                <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity border border-borderSubtle">
+                  <span className="text-white text-[10px] uppercase font-bold tracking-wider">Edit</span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleAvatarChange} 
+                    className="hidden" 
+                  />
+                </label>
+              )}
+            </div>
             
             {isAdmin ? (
               <div className="w-full space-y-3">
@@ -145,7 +184,7 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
                 </div>
                 <button 
                   onClick={handleUpdateDetails}
-                  disabled={isLoading || (groupName === chat.chatName && groupDesc === chat.description)}
+                  disabled={isLoading || (groupName === chat.chatName && groupDesc === chat.description && !groupAvatarFile)}
                   className="w-full py-2 bg-accent text-white rounded-md text-sm font-medium hover:bg-accentHover disabled:opacity-50 transition-colors"
                 >
                   {isLoading ? "Updating..." : "Save Changes"}

@@ -33,11 +33,23 @@ export const accessChat = async (userId) => {
 // React components can stop loading spinners or keep modals open.
 // ==========================================
 
-export const createGroupChat = async (name, users) => {
+export const createGroupChat = async (name, users, groupAvatarFile, description = "") => {
   try {
-    // Ensure we are sending the exact payload structure our Zod schema expects
-    const res = await api.post("/chat/group", { name, users });
-    return res.data;
+    if (groupAvatarFile) {
+      const formData = new FormData();
+      formData.append("name", name);
+      formData.append("users", JSON.stringify(users));
+      formData.append("groupAvatar", groupAvatarFile);
+      if (description) formData.append("description", description);
+      
+      const res = await api.post("/chat/group", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      return res.data;
+    } else {
+      const res = await api.post("/chat/group", { name, users, description });
+      return res.data;
+    }
   } catch (error) {
     console.error("Failed to create group chat API:", error);
     throw error; // Bubble up to component's try/catch
@@ -45,11 +57,22 @@ export const createGroupChat = async (name, users) => {
 };
 
 // 🛡️ ARCHITECTURAL ADDITION: Replaces/Enhances renameGroupChat for the new GroupInfoModal
-export const updateGroupDetails = async (chatId, data) => {
+export const updateGroupDetails = async (chatId, data, groupAvatarFile) => {
   try {
-    // data payload expects: { chatName: string, description: string }
-    const res = await api.put(`/chat/group/${chatId}/details`, data);
-    return res.data;
+    if (groupAvatarFile || data.chatName || data.description !== undefined) {
+      const formData = new FormData();
+      if (data.chatName) formData.append("chatName", data.chatName);
+      if (data.description !== undefined) formData.append("description", data.description);
+      if (groupAvatarFile) formData.append("groupAvatar", groupAvatarFile);
+
+      const res = await api.put(`/chat/group/${chatId}/details`, formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      return res.data;
+    } else {
+      const res = await api.put(`/chat/group/${chatId}/details`, data);
+      return res.data;
+    }
   } catch (error) {
     console.error("Failed to update group details API:", error);
     throw error;

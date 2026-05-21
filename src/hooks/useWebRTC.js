@@ -10,6 +10,7 @@ export const useWebRTC = (currentUserId) => {
   
   const peerConnection = useRef(null);
   const currentCallTarget = useRef(null);
+  const localStreamRef = useRef(null);
 
   const rtcConfig = {
     iceServers: [
@@ -39,6 +40,7 @@ export const useWebRTC = (currentUserId) => {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       setLocalStream(stream);
+      localStreamRef.current = stream;
       setIsMuted(false); // Reset mute state on new call
     } catch (err) {
       toast.error("Microphone access denied!");
@@ -68,49 +70,62 @@ export const useWebRTC = (currentUserId) => {
     return pc;
   };
 
-  const initiateCall = async (targetUserId) => {
+  const initiateCall = (targetUserId) => {
+    setCallStatus("calling");
+    currentCallTarget.current = targetUserId;
+  };
+
+  const acceptCall = (callerId) => {
+    setCallStatus("connecting");
+    currentCallTarget.current = callerId;
+    const socket = getSocket();
+    socket.emit("accept_call", { to: callerId });
+  };
+
+  const handleCallAccepted = async () => {
     try {
-      setCallStatus("calling");
+      const targetUserId = currentCallTarget.current;
+      if (!targetUserId) return;
+
+      setCallStatus("connecting");
       const pc = await initWebRTC(targetUserId);
-      
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
       const socket = getSocket();
       socket.emit("webrtc_offer", {
-        userToCall: targetUserId,
+        to: targetUserId,
         sdp: offer
       });
     } catch (err) {
-      console.error("Failed to initiate call:", err);
+      console.error("Failed to generate WebRTC offer after call accepted:", err);
       cleanupCall();
     }
   };
 
-  const acceptCall = async (callerId, incomingOfferSdp) => {
+  const handleIncomingOffer = async ({ from, sdp }) => {
     try {
       setCallStatus("connecting");
-      const pc = await initWebRTC(callerId);
-
-      await pc.setRemoteDescription(new RTCSessionDescription(incomingOfferSdp));
+      const pc = await initWebRTC(from);
+      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
       const socket = getSocket();
       socket.emit("webrtc_answer", {
-        to: callerId,
+        to: from,
         sdp: answer
       });
     } catch (err) {
-      console.error("Failed to accept call:", err);
+      console.error("Failed to handle incoming WebRTC offer:", err);
       cleanupCall();
     }
   };
 
   // 🛡️ ARCHITECTURAL UPGRADE: Hardware Microphone Control
   const toggleMute = () => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled; // Physically cuts the mic
         setIsMuted(!audioTrack.enabled);
@@ -123,8 +138,9 @@ export const useWebRTC = (currentUserId) => {
       peerConnection.current.close();
       peerConnection.current = null;
     }
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
     }
     setLocalStream(null);
     setRemoteStream(null);
@@ -137,13 +153,21 @@ export const useWebRTC = (currentUserId) => {
     const socket = getSocket();
     if (!socket) return;
 
-    const handleAnswer = async ({ sdp }) => {
+    const handleCallAcceptedEvent = () => {
+      handleCallAccepted();
+    };
+
+    const handleOfferEvent = (data) => {
+      handleIncomingOffer(data);
+    };
+
+    const handleAnswerEvent = async ({ sdp }) => {
       if (peerConnection.current) {
         await peerConnection.current.setRemoteDescription(new RTCSessionDescription(sdp));
       }
     };
 
-    const handleIceCandidate = async ({ candidate }) => {
+    const handleIceCandidateEvent = async ({ candidate }) => {
       if (peerConnection.current) {
         try {
           await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
@@ -153,12 +177,16 @@ export const useWebRTC = (currentUserId) => {
       }
     };
 
-    socket.on("webrtc_answer", handleAnswer);
-    socket.on("webrtc_ice_candidate", handleIceCandidate);
+    socket.on("call_accepted", handleCallAcceptedEvent);
+    socket.on("webrtc_offer", handleOfferEvent);
+    socket.on("webrtc_answer", handleAnswerEvent);
+    socket.on("webrtc_ice_candidate", handleIceCandidateEvent);
 
     return () => {
-      socket.off("webrtc_answer", handleAnswer);
-      socket.off("webrtc_ice_candidate", handleIceCandidate);
+      socket.off("call_accepted", handleCallAcceptedEvent);
+      socket.off("webrtc_offer", handleOfferEvent);
+      socket.off("webrtc_answer", handleAnswerEvent);
+      socket.off("webrtc_ice_candidate", handleIceCandidateEvent);
     };
   }, []);
 
