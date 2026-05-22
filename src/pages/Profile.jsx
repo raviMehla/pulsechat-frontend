@@ -9,7 +9,8 @@ import {
   updatePassword, 
   logoutAllDevices, 
   toggleBlockUser,
-  getMyProfile
+  getMyProfile,
+  updatePrivacy
 } from "../services/user.api";
 
 // 🟢 UI Primitives
@@ -121,11 +122,12 @@ function Profile() {
   };
 
   const handleLogoutAll = async () => {
-    if (!window.confirm("Are you sure you want to log out of all other devices?")) return;
+    if (!window.confirm("Are you sure you want to log out of every active session, including this browser?")) return;
     try {
       // 🛡️ API Execution via abstraction
       await logoutAllDevices();
-      toast.success("Logged out of all other devices.");
+      toast.success("All sessions logged out.");
+      executeLogout();
     } catch (error) {
       console.error("Global Logout Error:", error); 
       toast.error("Action failed");
@@ -149,6 +151,30 @@ function Profile() {
     } catch (error) {
       console.error("Unblock User Error:", error);
       toast.error("Failed to unblock user");
+    }
+  };
+
+  const handlePrivacyUpdate = async (field, value) => {
+    setIsLoading(true);
+    try {
+      const resData = await updatePrivacy({ [field]: value });
+      toast.success("Privacy settings updated");
+      setUser(prev => {
+        const updatedUser = {
+          ...prev,
+          privacy: {
+            ...prev?.privacy,
+            [field]: value
+          }
+        };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        return updatedUser;
+      });
+    } catch (error) {
+      console.error("Privacy Update Error:", error);
+      toast.error(error.response?.data?.message || "Failed to update privacy settings");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -257,44 +283,84 @@ function Profile() {
             <div className="bg-surface p-6 rounded-xl border border-borderSubtle space-y-4 shadow-sm">
               <div>
                 <h3 className="text-lg font-semibold">Active Sessions</h3>
-                <p className="text-sm text-textMuted mt-1">If you notice suspicious activity, log out of all other devices globally.</p>
+                <p className="text-sm text-textMuted mt-1">If you notice suspicious activity, log out of every active session globally.</p>
               </div>
-              <Button onClick={handleLogoutAll} variant="outlineDanger">Log Out of All Other Devices</Button>
+              <Button onClick={handleLogoutAll} variant="outlineDanger">Log Out of All Devices</Button>
             </div>
           </div>
         )}
 
         {/* --- PRIVACY TAB --- */}
         {activeTab === "privacy" && (
-          <div className="space-y-6 animate-fadeIn bg-surface p-6 rounded-xl border border-borderSubtle shadow-sm">
-            <h3 className="text-lg font-semibold">Blocked Users</h3>
-            {!user?.blockedUsers || user.blockedUsers.length === 0 ? (
-              <p className="text-sm text-textMuted italic">You have not blocked any users.</p>
-            ) : (
-              <div className="space-y-3">
-                {user.blockedUsers.map((blockedUser) => {
-                  const blockedId = blockedUser._id || blockedUser;
-                  const displayName = blockedUser.name || "Blocked User";
-                  const usernameText = blockedUser.username ? `@${blockedUser.username}` : "";
-                  const avatarSrc = blockedUser.profilePic;
+          <div className="space-y-8 animate-fadeIn">
+            {/* Privacy Settings Form */}
+            <div className="bg-surface p-6 rounded-xl border border-borderSubtle space-y-6 shadow-sm">
+              <h3 className="text-lg font-semibold">Privacy Boundaries</h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-textMuted">Last Seen & Online</label>
+                  <select 
+                    value={user?.privacy?.lastSeen || "everyone"}
+                    onChange={(e) => handlePrivacyUpdate("lastSeen", e.target.value)}
+                    disabled={isLoading}
+                    className="w-full p-2.5 bg-background border border-borderSubtle rounded-lg text-textPrimary outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="everyone">Everyone</option>
+                    <option value="contacts">My Contacts</option>
+                    <option value="nobody">Nobody</option>
+                  </select>
+                  <p className="text-xs text-textMuted">Choose who can see when you were last online.</p>
+                </div>
 
-                  return (
-                    <div key={blockedId} className="flex items-center justify-between p-3 bg-background border border-borderSubtle rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Avatar src={avatarSrc} alt={displayName} size="sm" />
-                        <div className="flex flex-col">
-                          <span className="text-sm text-textPrimary font-medium">{displayName}</span>
-                          {usernameText && <span className="text-xs text-textMuted">{usernameText}</span>}
-                        </div>
-                      </div>
-                      <Button onClick={() => handleUnblock(blockedId)} variant="ghost" className="text-xs py-1 px-3">
-                        Unblock
-                      </Button>
-                    </div>
-                  );
-                })}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-textMuted">Profile Photo</label>
+                  <select 
+                    value={user?.privacy?.profilePhoto || "everyone"}
+                    onChange={(e) => handlePrivacyUpdate("profilePhoto", e.target.value)}
+                    disabled={isLoading}
+                    className="w-full p-2.5 bg-background border border-borderSubtle rounded-lg text-textPrimary outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="everyone">Everyone</option>
+                    <option value="contacts">My Contacts</option>
+                    <option value="nobody">Nobody</option>
+                  </select>
+                  <p className="text-xs text-textMuted">Control who can view your profile picture.</p>
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* Blocked Users List */}
+            <div className="bg-surface p-6 rounded-xl border border-borderSubtle space-y-4 shadow-sm">
+              <h3 className="text-lg font-semibold">Blocked Users</h3>
+              {!user?.blockedUsers || user.blockedUsers.length === 0 ? (
+                <p className="text-sm text-textMuted italic">You have not blocked any users.</p>
+              ) : (
+                <div className="space-y-3">
+                  {user.blockedUsers.map((blockedUser) => {
+                    const blockedId = blockedUser._id || blockedUser;
+                    const displayName = blockedUser.name || "Blocked User";
+                    const usernameText = blockedUser.username ? `@${blockedUser.username}` : "";
+                    const avatarSrc = blockedUser.profilePic;
+
+                    return (
+                      <div key={blockedId} className="flex items-center justify-between p-3 bg-background border border-borderSubtle rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Avatar src={avatarSrc} alt={displayName} size="sm" />
+                          <div className="flex flex-col">
+                            <span className="text-sm text-textPrimary font-medium">{displayName}</span>
+                            {usernameText && <span className="text-xs text-textMuted">{usernameText}</span>}
+                          </div>
+                        </div>
+                        <Button onClick={() => handleUnblock(blockedId)} variant="ghost" className="text-xs py-1 px-3">
+                          Unblock
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

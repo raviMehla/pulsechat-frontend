@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import api from "../services/api";
 import UserInfoModal from "../components/chat/UserInfoModal";
 import { 
@@ -58,7 +58,7 @@ function ChatView() {
   // WebRTC Call States
   const [isCalling, setIsCalling] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
-  const { localStream, remoteStream, callStatus, isMuted, toggleMute, initiateCall, acceptCall, cleanupCall } = useWebRTC(currentUserId);
+  const { remoteStream, callStatus, isMuted, toggleMute, initiateCall, acceptCall, cleanupCall } = useWebRTC(currentUserId);
 
   const otherUserIdRef = useRef(null);
 
@@ -131,6 +131,38 @@ function ChatView() {
     fetchChatInfo();
   }, [id, currentUserId]);
 
+  const loadMoreMessages = useCallback(async () => {
+    if (!nextCursor) return;
+    
+    try {
+      setIsFetchingMore(true);
+      
+      // Capture exact scroll height BEFORE prepending new elements
+      const container = document.getElementById("chat-scroll-container");
+      const previousScrollHeight = container ? container.scrollHeight : 0;
+
+      const data = await getMessages(id, nextCursor);
+      
+      // Prepend older messages to the top of the array
+      setMessages(prev => [...(data.messages || []), ...prev]);
+      setNextCursor(data.nextCursor || null);
+
+      // Restore scroll position after React renders the new DOM nodes
+      setTimeout(() => {
+        if (container) {
+          const currentScrollHeight = container.scrollHeight;
+          container.scrollTop = currentScrollHeight - previousScrollHeight;
+        }
+      }, 0);
+
+    } catch (error) {
+      console.error("Failed to load older messages", error);
+      toast.error("Failed to sync message history");
+    } finally {
+      setIsFetchingMore(false);
+    }
+  }, [id, nextCursor]);
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -144,7 +176,7 @@ function ChatView() {
     if (observerTarget.current) observer.observe(observerTarget.current);
     
     return () => observer.disconnect();
-  }, [nextCursor, isFetchingMore, isInitialLoading]);
+  }, [nextCursor, isFetchingMore, isInitialLoading, loadMoreMessages]);
 
   // ─────────────────────────────────────────────
   // 2️⃣ Attach Modular Socket Engine
@@ -206,15 +238,33 @@ function ChatView() {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("File is too large. Maximum size is 10MB.");
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("File is too large. Maximum size is 25MB.");
       e.target.value = ""; 
       return;
     }
 
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm"];
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-powerpoint",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "text/plain",
+      "application/zip",
+      "application/x-zip-compressed",
+    ];
     if (!allowedTypes.includes(file.type)) {
-      toast.error("Invalid file type. Only images and videos are allowed.");
+      toast.error("Invalid file type. Images, videos, PDFs, Office docs, text files, and ZIP files are allowed.");
       e.target.value = ""; 
       return;
     }
@@ -269,38 +319,6 @@ function ChatView() {
   
   const handleDelete = async (messageId) => { 
     await deleteMessage(messageId); 
-  };
-
-  const loadMoreMessages = async () => {
-    if (!nextCursor) return;
-    
-    try {
-      setIsFetchingMore(true);
-      
-      // Capture exact scroll height BEFORE prepending new elements
-      const container = document.getElementById("chat-scroll-container");
-      const previousScrollHeight = container ? container.scrollHeight : 0;
-
-      const data = await getMessages(id, nextCursor);
-      
-      // Prepend older messages to the top of the array
-      setMessages(prev => [...(data.messages || []), ...prev]);
-      setNextCursor(data.nextCursor || null);
-
-      // Restore scroll position after React renders the new DOM nodes
-      setTimeout(() => {
-        if (container) {
-          const currentScrollHeight = container.scrollHeight;
-          container.scrollTop = currentScrollHeight - previousScrollHeight;
-        }
-      }, 0);
-
-    } catch (error) {
-      console.error("Failed to load older messages", error);
-      toast.error("Failed to sync message history");
-    } finally {
-      setIsFetchingMore(false);
-    }
   };
 
   const handleJumpToMessage = async (targetMessage) => {

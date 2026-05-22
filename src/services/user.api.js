@@ -65,3 +65,8 @@ export const logoutAllDevices = async () => {
   const res = await api.post("/users/logout-all");
   return res.data;
 };
+
+export const updatePrivacy = async (privacyData) => {
+  const res = await api.put("/users/privacy", privacyData);
+  return res.data;
+};

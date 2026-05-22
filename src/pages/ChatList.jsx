@@ -99,6 +99,25 @@ function ChatList() {
     });
   };
 
+  const getLastMessagePreview = (lastMessage) => {
+    if (!lastMessage) return "No messages yet";
+    const isMe = String(lastMessage.sender?._id || lastMessage.sender) === String(currentUserId);
+    const prefix = isMe ? "You: " : "";
+    if (lastMessage.isDeleted) return `${prefix}This message was deleted`;
+    switch (lastMessage.messageType) {
+      case "image":
+        return `${prefix}📷 Photo`;
+      case "video":
+        return `${prefix}🎥 Video`;
+      case "file":
+        return `${prefix}📎 File`;
+      case "system":
+        return lastMessage.content || "";
+      default:
+        return `${prefix}${lastMessage.content || ""}`;
+    }
+  };
+
   return (
     <div className="h-full flex flex-col relative bg-surface border-r border-borderSubtle">
       
@@ -157,7 +176,7 @@ function ChatList() {
                   isGroup: chat.isGroup,
                   name: chatName,
                   image: chatImage,
-                  lastMessage: chat.lastMessage?.content || (chat.lastMessage?.messageType === "image" ? "📷 Image" : "No messages yet"),
+                  lastMessage: getLastMessagePreview(chat.lastMessage),
                   time: chat.lastMessage?.createdAt 
                     ? new Date(chat.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
                     : "",
