@@ -170,6 +170,10 @@ function CallOverlay({
         el.srcObject = remoteStream;
       }
       el.muted = speakerOff;
+      // 🛡️ Programmatically trigger play to catch and handle autoplay policy blocks
+      el.play().catch((err) => {
+        console.warn("Autoplay blocked remote WebRTC audio stream playback:", err);
+      });
     }
   }, [remoteStream, speakerOff]);
 
@@ -196,6 +200,156 @@ function CallOverlay({
     if (audioRef.current) audioRef.current.muted = speakerOff;
     if (remoteVideoRef.current) remoteVideoRef.current.muted = speakerOff;
   }, [speakerOff]);
+
+  // 🛡️ Autoplay Silent Ringtone & Audio Fallback using Web Audio API Synthesis
+  useEffect(() => {
+    const isConnected = callStatus === "connected";
+    const isIncoming = !!incomingCall;
+    const isRinging = isIncoming && !isConnected;
+
+    if (!isRinging) return;
+
+    let audioCtx = null;
+    let ringInterval = null;
+    let titleInterval = null;
+    const originalTitle = document.title;
+
+    const startFlashingTitle = () => {
+      if (titleInterval) return;
+      let toggle = false;
+      titleInterval = setInterval(() => {
+        document.title = toggle ? `📞 INCOMING CALL FROM ${chatName.toUpperCase()}...` : "PulseChat";
+        toggle = !toggle;
+      }, 500);
+    };
+
+    const stopFlashingTitle = () => {
+      if (titleInterval) {
+        clearInterval(titleInterval);
+        titleInterval = null;
+      }
+      document.title = originalTitle;
+    };
+
+    const triggerNotification = () => {
+      if (typeof window.Notification !== "undefined") {
+        if (Notification.permission === "default") {
+          Notification.requestPermission().then((permission) => {
+            if (permission === "granted") {
+              showNotification();
+            }
+          });
+        } else if (Notification.permission === "granted") {
+          showNotification();
+        }
+      }
+    };
+
+    const showNotification = () => {
+      try {
+        const title = callType === "video" ? "Incoming Video Call" : "Incoming Voice Call";
+        const options = {
+          body: `${chatName} is calling you on PulseChat...`,
+          tag: "pulsechat-call",
+          renotify: true,
+          requireInteraction: true,
+        };
+        const notification = new window.Notification(title, options);
+        notification.onclick = () => {
+          window.focus();
+          onAccept && onAccept();
+          notification.close();
+        };
+      } catch (err) {
+        console.error("Failed to show push notification:", err);
+      }
+    };
+
+    const playRingtoneBeep = () => {
+      try {
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) return;
+          audioCtx = new AudioContextClass();
+        }
+        
+        if (audioCtx.state === "suspended") {
+          // Attempt to resume
+          audioCtx.resume();
+        }
+
+        const playTone = (freq, startTime, duration) => {
+          if (!audioCtx || audioCtx.state === "closed") return;
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, startTime);
+
+          gain.gain.setValueAtTime(0, startTime);
+          gain.gain.linearRampToValueAtTime(0.15, startTime + 0.05);
+          gain.gain.setValueAtTime(0.15, startTime + duration - 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start(startTime);
+          osc.stop(startTime + duration);
+        };
+
+        // Dual-frequency US telephone ring style: 440Hz + 480Hz combined
+        const now = audioCtx.currentTime;
+        // Two quick rings of 0.8s each, separated by 0.2s pause
+        playTone(440, now, 0.8);
+        playTone(480, now, 0.8);
+
+        playTone(440, now + 1.0, 0.8);
+        playTone(480, now + 1.0, 0.8);
+      } catch (err) {
+        console.error("Synthesizer audio error:", err);
+      }
+    };
+
+    // First attempt to play
+    playRingtoneBeep();
+    
+    // Check if autoplay was blocked by seeing if audio context is suspended
+    const blockCheckTimeout = setTimeout(() => {
+      if (audioCtx && audioCtx.state === "suspended") {
+        console.warn("🔔 Autoplay blocked! Activating flashing title and push notifications.");
+        startFlashingTitle();
+        triggerNotification();
+      }
+    }, 150);
+
+    // Repeat telephone double-ring every 3.5 seconds
+    ringInterval = setInterval(playRingtoneBeep, 3500);
+
+    // Click/touchstart listener to unlock the AudioContext and stop title flashing
+    const handleUnlockInteraction = () => {
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume().then(() => {
+          console.log("🔊 AudioContext successfully unlocked by user interaction!");
+          stopFlashingTitle();
+        });
+      }
+    };
+
+    window.addEventListener("click", handleUnlockInteraction);
+    window.addEventListener("touchstart", handleUnlockInteraction);
+
+    return () => {
+      clearTimeout(blockCheckTimeout);
+      clearInterval(ringInterval);
+      stopFlashingTitle();
+      window.removeEventListener("click", handleUnlockInteraction);
+      window.removeEventListener("touchstart", handleUnlockInteraction);
+      if (audioCtx && audioCtx.state !== "closed") {
+        audioCtx.close();
+      }
+    };
+  }, [incomingCall, callStatus, chatName, callType, onAccept]);
 
   const isActive = isCalling || incomingCall || callStatus !== "idle";
   if (!isActive) return null;

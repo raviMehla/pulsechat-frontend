@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState, useRef, useCallback, useLayoutEffect } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import api from "../services/api";
 import UserInfoModal from "../components/chat/UserInfoModal";
 import { 
@@ -26,6 +26,7 @@ import MessageBubble from "../components/chat/MessageBubble";
 import MessageInput from "../components/chat/MessageInput";
 import MessageSearch from "../components/chat/MessageSearch";
 import GroupInfoModal from "../components/chat/GroupInfoModal";
+import { Virtuoso } from "react-virtuoso";
 
 // Helper for client-side image compression
 const compressImage = (file) => {
@@ -100,12 +101,11 @@ function ChatView() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [nextCursor, setNextCursor] = useState(null);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
-  const observerTarget = useRef(null);
+  const virtuosoRef = useRef(null);
   const isFetchingMoreRef = useRef(false);
   const scrollContainerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const lastTypedTimeRef = useRef(0);
-  const scrollHeightBeforeRef = useRef(0);
   const uploadAbortControllerRef = useRef(null);
   const [chatImage, setChatImage] = useState(null);
   const [isUserInfoOpen, setIsUserInfoOpen] = useState(false);
@@ -198,9 +198,6 @@ function ChatView() {
     try {
       isFetchingMoreRef.current = true;
       setIsFetchingMore(true);
-      
-      const container = scrollContainerRef.current;
-      scrollHeightBeforeRef.current = container ? container.scrollHeight : 0;
 
       const data = await getMessages(id, nextCursor);
       
@@ -214,29 +211,6 @@ function ChatView() {
       setIsFetchingMore(false);
     }
   }, [id, nextCursor]);
-
-  useLayoutEffect(() => {
-    if (scrollHeightBeforeRef.current > 0 && scrollContainerRef.current) {
-      const newScrollHeight = scrollContainerRef.current.scrollHeight;
-      scrollContainerRef.current.scrollTop = newScrollHeight - scrollHeightBeforeRef.current;
-      scrollHeightBeforeRef.current = 0;
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && nextCursor && !isFetchingMoreRef.current && !isInitialLoading) {
-          loadMoreMessages();
-        }
-      },
-      { threshold: 1.0 }
-    );
-
-    if (observerTarget.current) observer.observe(observerTarget.current);
-    
-    return () => observer.disconnect();
-  }, [nextCursor, isInitialLoading, loadMoreMessages]);
 
   // ─────────────────────────────────────────────
   // 2️⃣ Attach Modular Socket Engine
@@ -568,20 +542,15 @@ function ChatView() {
       )}
       
       {/* 3. SCROLLABLE MESSAGE LIST: Perfectly isolated between the top and bottom */}
-      <div ref={scrollContainerRef} id="chat-scroll-container" className="flex-1 overflow-y-auto p-4 space-y-0 relative custom-scrollbar flex flex-col w-full" >
-        
+      <div className="flex-1 w-full relative min-h-0">
         {isInitialLoading ? (
-          <MessageSkeleton />
+          <div className="absolute inset-0 p-4 overflow-y-auto custom-scrollbar">
+            <MessageSkeleton />
+          </div>
         ) : (
           <>
-            {nextCursor && (
-               <div ref={observerTarget} className="w-full h-10 flex flex-none items-center justify-center my-2">
-                  {isFetchingMore && <span className="text-xs font-medium text-accent animate-pulse">Loading history...</span>}
-               </div>
-            )}
-
             {isViewingHistory && (
-              <div className="sticky top-2 z-10 flex justify-center mb-4">
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 flex justify-center">
                 <button 
                   onClick={handleJumpToPresent}
                   className="bg-surface border border-borderSubtle text-textPrimary px-4 py-1.5 rounded-full text-sm font-medium shadow-md hover:bg-background transition-colors flex items-center gap-2"
@@ -591,36 +560,59 @@ function ChatView() {
               </div>
             )}
 
-            {Array.isArray(messages) && messages.map((msg, index) => {
-              const prevMsg = index > 0 ? messages[index - 1] : null;
-              const nextMsg = index < messages.length - 1 ? messages[index + 1] : null;
+            <Virtuoso
+              ref={virtuosoRef}
+              data={messages}
+              firstItemIndex={10000 - messages.length}
+              initialTopMostItemIndex={messages.length > 0 ? messages.length - 1 : 0}
+              followOutput="smooth"
+              startReached={loadMoreMessages}
+              scrollerRef={(element) => {
+                scrollContainerRef.current = element;
+              }}
+              className="w-full h-full p-4 overflow-y-auto custom-scrollbar flex flex-col"
+              itemContent={(index, msg) => {
+                const firstIndex = 10000 - messages.length;
+                const relativeIndex = index - firstIndex;
+                const prevMsg = relativeIndex > 0 ? messages[relativeIndex - 1] : null;
+                const nextMsg = relativeIndex < messages.length - 1 ? messages[relativeIndex + 1] : null;
 
-              const senderId = msg.sender?._id || msg.sender;
-              const prevSenderId = prevMsg ? (prevMsg.sender?._id || prevMsg.sender) : null;
-              const nextSenderId = nextMsg ? (nextMsg.sender?._id || nextMsg.sender) : null;
+                const senderId = msg.sender?._id || msg.sender;
+                const prevSenderId = prevMsg ? (prevMsg.sender?._id || prevMsg.sender) : null;
+                const nextSenderId = nextMsg ? (nextMsg.sender?._id || nextMsg.sender) : null;
 
-              const TWO_MINUTES = 2 * 60 * 1000;
-              const timeDiffPrev = prevMsg && msg.createdAt ? new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime() : 0;
-              const timeDiffNext = nextMsg && msg.createdAt ? new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime() : 0;
+                const TWO_MINUTES = 2 * 60 * 1000;
+                const timeDiffPrev = prevMsg && msg.createdAt ? new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime() : 0;
+                const timeDiffNext = nextMsg && msg.createdAt ? new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime() : 0;
 
-              const isFirstInGroup = !prevMsg || senderId !== prevSenderId || timeDiffPrev > TWO_MINUTES;
-              const isLastInGroup = !nextMsg || senderId !== nextSenderId || timeDiffNext > TWO_MINUTES;
+                const isFirstInGroup = !prevMsg || senderId !== prevSenderId || timeDiffPrev > TWO_MINUTES;
+                const isLastInGroup = !nextMsg || senderId !== nextSenderId || timeDiffNext > TWO_MINUTES;
 
-              return (
-                <MessageBubble 
-                  key={msg._id} 
-                  msg={msg} 
-                  currentUserId={currentUserId}
-                  isGroup={isGroup}
-                  isFirstInGroup={isFirstInGroup}
-                  isLastInGroup={isLastInGroup}
-                  onReply={() => setReplyingTo(msg)}
-                  onReact={handleReaction}
-                  onDelete={handleDelete}
-                  onRetry={handleRetry}
-                />
-              );
-            })}
+                return (
+                  <MessageBubble 
+                    key={msg._id} 
+                    msg={msg} 
+                    currentUserId={currentUserId}
+                    isGroup={isGroup}
+                    isFirstInGroup={isFirstInGroup}
+                    isLastInGroup={isLastInGroup}
+                    onReply={() => setReplyingTo(msg)}
+                    onReact={handleReaction}
+                    onDelete={handleDelete}
+                    onRetry={handleRetry}
+                  />
+                );
+              }}
+              components={{
+                Header: () => (
+                  nextCursor ? (
+                    <div className="w-full h-10 flex items-center justify-center my-2">
+                      {isFetchingMore && <span className="text-xs font-medium text-accent animate-pulse">Loading history...</span>}
+                    </div>
+                  ) : null
+                )
+              }}
+            />
           </>
         )}
       </div>

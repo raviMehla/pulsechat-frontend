@@ -6,15 +6,33 @@ import { Toaster } from "react-hot-toast";
 import AppLayout from "./components/common/AppLayout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 
+// 🛡️ Lazy Loading Retry Wrapper to handle Chunk Load Errors on new deployments
+const lazyWithRetry = (componentImport) => {
+  return lazy(async () => {
+    try {
+      return await componentImport();
+    } catch (error) {
+      console.error("Dynamic import failed. Chunk loading mismatch. Reloading app...", error);
+      const hasReloaded = window.sessionStorage.getItem("lazy-retry-reloaded");
+      if (!hasReloaded) {
+        window.sessionStorage.setItem("lazy-retry-reloaded", "true");
+        window.location.reload();
+        return new Promise(() => {}); // Keep loader displayed during reload
+      }
+      throw error;
+    }
+  });
+};
+
 // Pages (🛡️ Lazy Loaded Chunks)
-const ChatView = lazy(() => import("./pages/ChatView"));
-const Profile = lazy(() => import("./pages/Profile"));
-const Settings = lazy(() => import("./pages/Settings"));
-const Login = lazy(() => import("./pages/Login"));
-const Register = lazy(() => import("./pages/Register")); 
-const Welcome = lazy(() => import("./pages/Welcome"));   
-const Landing = lazy(() => import("./pages/Landing")); 
-const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ChatView = lazyWithRetry(() => import("./pages/ChatView"));
+const Profile = lazyWithRetry(() => import("./pages/Profile"));
+const Settings = lazyWithRetry(() => import("./pages/Settings"));
+const Login = lazyWithRetry(() => import("./pages/Login"));
+const Register = lazyWithRetry(() => import("./pages/Register")); 
+const Welcome = lazyWithRetry(() => import("./pages/Welcome"));   
+const Landing = lazyWithRetry(() => import("./pages/Landing")); 
+const ForgotPassword = lazyWithRetry(() => import("./pages/ForgotPassword"));
 
 // Socket Integration
 import { socket, disconnectSocket } from "./services/socket"; 
@@ -23,6 +41,11 @@ function App() {
   const currentUserId = localStorage.getItem("userId");
   const token = localStorage.getItem("token");
   const navigate = useNavigate();
+
+  // 🛡️ Clear chunk retry reload state once the application successfully mounts
+  useEffect(() => {
+    window.sessionStorage.removeItem("lazy-retry-reloaded");
+  }, []);
 
   // 🛡️ Cross-Tab Authentication Sync & Custom 401 Interceptor Listener
   useEffect(() => {

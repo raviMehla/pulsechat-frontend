@@ -16,6 +16,7 @@ export const useWebRTC = (_currentUserId) => {
   const remoteStreamRef = useRef(null);
   const callTypeRef = useRef("audio"); // 🛡️ Fix stale closure in socket event listener
   const iceCandidateQueue = useRef([]);
+  const iceDropTimeoutRef = useRef(null);
 
   const rtcConfig = {
     iceServers: [
@@ -96,6 +97,34 @@ export const useWebRTC = (_currentUserId) => {
           to: targetUserId,
           candidate: event.candidate
         });
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      const state = pc.iceConnectionState;
+      console.log("⚡ WebRTC ICE Connection State Changed:", state);
+      
+      if (state === "disconnected" || state === "failed") {
+        toast.error("WebRTC connection lost. Reconnecting...", { id: "webrtc-status" });
+        
+        if (!iceDropTimeoutRef.current) {
+          iceDropTimeoutRef.current = setTimeout(() => {
+            if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+              toast.error("Call timed out due to network issues.", { id: "webrtc-status" });
+              cleanupCall();
+              const socket = getSocket();
+              if (socket && socket.connected && currentCallTarget.current) {
+                socket.emit("cancel_call", { to: currentCallTarget.current });
+              }
+            }
+          }, 5000);
+        }
+      } else if (state === "connected" || state === "completed") {
+        toast.success("WebRTC connection restored!", { id: "webrtc-status" });
+        if (iceDropTimeoutRef.current) {
+          clearTimeout(iceDropTimeoutRef.current);
+          iceDropTimeoutRef.current = null;
+        }
       }
     };
 
@@ -194,6 +223,10 @@ export const useWebRTC = (_currentUserId) => {
   };
 
   const cleanupCall = () => {
+    if (iceDropTimeoutRef.current) {
+      clearTimeout(iceDropTimeoutRef.current);
+      iceDropTimeoutRef.current = null;
+    }
     if (peerConnection.current) {
       peerConnection.current.close();
       peerConnection.current = null;
