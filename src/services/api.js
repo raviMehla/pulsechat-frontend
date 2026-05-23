@@ -37,18 +37,20 @@ api.interceptors.response.use(
         toast.error(message || "File upload rejected by security policy.");
         break;
 
-      case 401: // 🛡️ Unauthorized (JWT Expired/Tampered)
+      case 401: { // 🛡️ Unauthorized (JWT Expired/Tampered)
         toast.error("Session expired or invalid. Please log in again.");
         localStorage.removeItem("token");
         localStorage.removeItem("userId");
+        localStorage.removeItem("user");
         
         // 🚨 CRITICAL: Sever the WebSocket connection immediately to prevent ghost sessions
         const socket = getSocket();
         if (socket) socket.disconnect(); 
         
-        // Redirect to login (or use your router's navigate function if inside a React context)
-        window.location.href = "/login"; 
+        // Dispatch a custom event to let App.jsx handle the navigation smoothly
+        window.dispatchEvent(new Event("auth_expired")); 
         break;
+      }
 
       case 403: // 🛡️ Forbidden (e.g., attempting to message a group you were kicked from)
         toast.error(message || "You do not have permission to do this.");

@@ -54,6 +54,9 @@ function ChatView() {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const observerTarget = useRef(null);
   const isFetchingMoreRef = useRef(false);
+  const scrollContainerRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const lastTypedTimeRef = useRef(0);
   const [chatImage, setChatImage] = useState(null);
   const [isUserInfoOpen, setIsUserInfoOpen] = useState(false);
   // WebRTC Call States
@@ -152,7 +155,7 @@ function ChatView() {
       setIsFetchingMore(true);
       
       // Capture exact scroll height BEFORE prepending new elements
-      const container = document.getElementById("chat-scroll-container");
+      const container = scrollContainerRef.current;
       const previousScrollHeight = container ? container.scrollHeight : 0;
 
       const data = await getMessages(id, nextCursor);
@@ -163,9 +166,10 @@ function ChatView() {
 
       // Restore scroll position after React renders the new DOM nodes
       setTimeout(() => {
-        if (container) {
-          const currentScrollHeight = container.scrollHeight;
-          container.scrollTop = currentScrollHeight - previousScrollHeight;
+        const currentContainer = scrollContainerRef.current;
+        if (currentContainer) {
+          const currentScrollHeight = currentContainer.scrollHeight;
+          currentContainer.scrollTop = currentScrollHeight - previousScrollHeight;
         }
       }, 0);
 
@@ -243,6 +247,19 @@ function ChatView() {
       }
     };
   }, [previewUrl]);
+
+  // Cleanup typing timeout and emit stop_typing on unmount or chat change
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      const socket = getSocket();
+      if (socket && id) {
+        socket.emit("stop_typing", { chatId: id });
+      }
+    };
+  }, [id]);
   // ─────────────────────────────────────────────
   // 3️⃣ Component Methods (UI Handlers)
   // ─────────────────────────────────────────────
@@ -317,7 +334,14 @@ function ChatView() {
       
       setReplyingTo(null); 
       const socket = getSocket();
-      if (socket) socket.emit("stop_typing", { chatId: id });
+      if (socket) {
+        socket.emit("stop_typing", { chatId: id });
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      lastTypedTimeRef.current = 0;
 
     } catch (err) {
       if (err.response?.status === 403) {
@@ -343,11 +367,15 @@ function ChatView() {
   };
 
   const handleJumpToMessage = async (targetMessage) => {
-    let element = document.getElementById(`msg-${targetMessage._id}`);
+    const element = document.getElementById(`msg-${targetMessage._id}`);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
       element.classList.add("bg-accent/20"); 
-      setTimeout(() => element.classList.remove("bg-accent/20"), 2000);
+      setTimeout(() => {
+        if (element && document.body.contains(element)) {
+          element.classList.remove("bg-accent/20");
+        }
+      }, 2000);
     } else {
       try {
         const contextMessages = await fetchMessageContext(id, targetMessage._id);
@@ -360,7 +388,11 @@ function ChatView() {
           if (newElement) {
             newElement.scrollIntoView({ behavior: "smooth", block: "center" });
             newElement.classList.add("bg-accent/20"); 
-            setTimeout(() => newElement.classList.remove("bg-accent/20"), 2000);
+            setTimeout(() => {
+              if (newElement && document.body.contains(newElement)) {
+                newElement.classList.remove("bg-accent/20");
+              }
+            }, 2000);
           }
         }, 150); 
       } catch (err) {
@@ -376,8 +408,9 @@ function ChatView() {
       setNextCursor(data.nextCursor || null);
       setIsViewingHistory(false);
       setTimeout(() => {
-        const chatContainer = document.getElementById("chat-scroll-container");
-        if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        }
       }, 100);
     } catch (err) {
       console.error("Failed to return to present", err);
@@ -480,7 +513,7 @@ function ChatView() {
       )}
       
       {/* 3. SCROLLABLE MESSAGE LIST: Perfectly isolated between the top and bottom */}
-      <div id="chat-scroll-container" className="flex-1 overflow-y-auto p-4 space-y-0 relative custom-scrollbar flex flex-col w-full" >
+      <div ref={scrollContainerRef} id="chat-scroll-container" className="flex-1 overflow-y-auto p-4 space-y-0 relative custom-scrollbar flex flex-col w-full" >
         
         {isInitialLoading ? (
           <MessageSkeleton />
@@ -561,10 +594,22 @@ function ChatView() {
             handleTyping={() => {
               const socket = getSocket();
               if (!socket) return;
-              socket.emit("typing", { chatId: id });
-              clearTimeout(window.typingTimeout);
-              window.typingTimeout = setTimeout(() => {
+              
+              const now = Date.now();
+              // Emit typing event at most once every 3 seconds
+              if (now - lastTypedTimeRef.current > 3000) {
+                socket.emit("typing", { chatId: id });
+                lastTypedTimeRef.current = now;
+              }
+
+              // Debounce stop_typing emission
+              if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+              }
+              
+              typingTimeoutRef.current = setTimeout(() => {
                 socket.emit("stop_typing", { chatId: id });
+                lastTypedTimeRef.current = 0; // Reset typing time so next keystroke instantly emits
               }, 1500);
             }}
             replyingTo={replyingTo}

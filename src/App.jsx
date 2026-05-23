@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 
@@ -22,6 +22,34 @@ import { socket, disconnectSocket } from "./services/socket";
 function App() {
   const currentUserId = localStorage.getItem("userId");
   const token = localStorage.getItem("token");
+  const navigate = useNavigate();
+
+  // 🛡️ Cross-Tab Authentication Sync & Custom 401 Interceptor Listener
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === "token" && !e.newValue) {
+        console.warn("🔐 Auth token cleared in another tab. Logging out...");
+        localStorage.removeItem("token");
+        localStorage.removeItem("userId");
+        localStorage.removeItem("user");
+        disconnectSocket();
+        navigate("/login", { replace: true });
+      }
+    };
+
+    const handleAuthExpired = () => {
+      console.warn("🔒 Session expired. Redirecting to login...");
+      navigate("/login", { replace: true });
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("auth_expired", handleAuthExpired);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("auth_expired", handleAuthExpired);
+    };
+  }, [navigate]);
 
   useEffect(() => {
     // 1. Only establish the WebSocket connection if the user is securely authenticated.
