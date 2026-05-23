@@ -27,6 +27,53 @@ import MessageInput from "../components/chat/MessageInput";
 import MessageSearch from "../components/chat/MessageSearch";
 import GroupInfoModal from "../components/chat/GroupInfoModal";
 
+// Helper for client-side image compression
+const compressImage = (file) => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith("image/") || file.type === "image/gif") {
+      return resolve(file);
+    }
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const MAX_WIDTH = 1600;
+      const MAX_HEIGHT = 1600;
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width = Math.round((width * MAX_HEIGHT) / height);
+          height = MAX_HEIGHT;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return resolve(file);
+          const compressedFile = new File([blob], file.name, {
+            type: file.type,
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        },
+        file.type,
+        0.8
+      );
+    };
+    img.onerror = () => resolve(file);
+  });
+};
+
 function ChatView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -306,15 +353,61 @@ function ChatView() {
         const controller = new AbortController();
         uploadAbortControllerRef.current = controller;
 
-        await sendMedia(id, selectedFile, replyingTo?._id, controller.signal);
+        // 🛡️ Client-side image compression to save cloud bandwidth
+        let fileToSend = selectedFile;
+        if (selectedFile.type.startsWith("image/") && selectedFile.type !== "image/gif") {
+          try {
+            fileToSend = await compressImage(selectedFile);
+          } catch (compressErr) {
+            console.error("Compression failed, uploading original:", compressErr);
+          }
+        }
+
+        await sendMedia(id, fileToSend, replyingTo?._id, controller.signal);
         clearPreview();
+        setReplyingTo(null);
       } else {
-        if (!input.trim()) return;
-        await sendMessage({ content: input, chatId: id, replyTo: replyingTo?._id || null });
+        const textToSend = input.trim();
+        if (!textToSend) return;
+
+        // 🛡️ Optimistic UI implementation: Add pending message to state instantly
+        const tempId = `temp-${Date.now()}`;
+        const myUserString = localStorage.getItem("user");
+        const myUserObj = myUserString ? JSON.parse(myUserString) : { _id: currentUserId, name: "Me" };
+        
+        const optimisticMsg = {
+          _id: tempId,
+          content: textToSend,
+          sender: myUserObj,
+          createdAt: new Date().toISOString(),
+          messageType: "text",
+          status: "pending",
+          replyTo: replyingTo ? {
+            _id: replyingTo._id,
+            content: replyingTo.content,
+            sender: replyingTo.sender,
+            messageType: replyingTo.messageType,
+            fileUrl: replyingTo.fileUrl,
+            fileName: replyingTo.fileName,
+            isDeleted: replyingTo.isDeleted
+          } : null
+        };
+
         setInput("");
+        setReplyingTo(null);
+        setMessages(prev => [...prev, optimisticMsg]);
+
+        try {
+          const sentData = await sendMessage({ content: textToSend, chatId: id, replyTo: optimisticMsg.replyTo?._id || null });
+          // Swap temp optimistic message with actual DB message
+          setMessages(prev => prev.map(m => m._id === tempId ? { ...sentData, status: "sent" } : m));
+        } catch (apiErr) {
+          console.error("Optimistic send failed:", apiErr);
+          setMessages(prev => prev.map(m => m._id === tempId ? { ...m, status: "failed" } : m));
+          throw apiErr; // Let the outer catch handle the toast or standard logging
+        }
       }
       
-      setReplyingTo(null); 
       const socket = getSocket();
       if (socket) {
         socket.emit("stop_typing", { chatId: id });
@@ -342,6 +435,25 @@ function ChatView() {
     } finally {
       uploadAbortControllerRef.current = null;
       setIsUploading(false);
+    }
+  };
+
+  const handleRetry = async (failedMsg) => {
+    // Mark status as pending
+    setMessages(prev => prev.map(m => m._id === failedMsg._id ? { ...m, status: "pending" } : m));
+
+    try {
+      const sentData = await sendMessage({ 
+        content: failedMsg.content, 
+        chatId: id, 
+        replyTo: failedMsg.replyTo?._id || null 
+      });
+      // Replace the failed message with the sent data
+      setMessages(prev => prev.map(m => m._id === failedMsg._id ? { ...sentData, status: "sent" } : m));
+    } catch (err) {
+      console.error("Retry send failed:", err);
+      setMessages(prev => prev.map(m => m._id === failedMsg._id ? { ...m, status: "failed" } : m));
+      toast.error("Failed to resend message. Check your connection.");
     }
   };
 
@@ -505,6 +617,7 @@ function ChatView() {
                   onReply={() => setReplyingTo(msg)}
                   onReact={handleReaction}
                   onDelete={handleDelete}
+                  onRetry={handleRetry}
                 />
               );
             })}

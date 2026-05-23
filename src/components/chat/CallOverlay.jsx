@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { createPortal } from "react-dom";
 import { Avatar } from "../ui/Avatar";
 import { useEffect, useRef, useState, useCallback } from "react";

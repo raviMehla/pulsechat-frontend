@@ -35,7 +35,17 @@ export const useChatSocket = ({
 
       setMessages((prev) => {
         const exists = prev.some((m) => String(m._id) === String(msg._id));
-        return exists ? prev : [...prev, msg];
+        if (exists) return prev;
+
+        // 🛡️ Optimistic UI Deduplication: If the message is from ourselves, see if we can replace a pending message
+        const senderId = msg.sender?._id || msg.sender;
+        if (String(senderId) === String(currentUserId)) {
+          const pendingIdx = prev.findIndex(m => m.status === "pending" && m.content === msg.content);
+          if (pendingIdx !== -1) {
+            return prev.map((m, idx) => idx === pendingIdx ? msg : m);
+          }
+        }
+        return [...prev, msg];
       });
 
       if (String(msg.sender?._id) !== String(currentUserId)) {

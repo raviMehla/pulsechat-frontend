@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from "react";
 import { searchChatMessages } from "../../services/message.api";
 import { motion } from "framer-motion"; // 🛡️ UPGRADE: Framer Motion

@@ -1,20 +1,20 @@
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Toaster } from "react-hot-toast";
 
 // Layouts & Security
 import AppLayout from "./components/common/AppLayout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 
-// Pages
-import ChatView from "./pages/ChatView";
-import Profile from "./pages/Profile";
-import Settings from "./pages/Settings";
-import Login from "./pages/Login";
-import Register from "./pages/Register"; 
-import Welcome from "./pages/Welcome";   
-import Landing from "./pages/Landing"; // 🛡️ NEW: The Front Door
-import ForgotPassword from "./pages/ForgotPassword";
+// Pages (🛡️ Lazy Loaded Chunks)
+const ChatView = lazy(() => import("./pages/ChatView"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register")); 
+const Welcome = lazy(() => import("./pages/Welcome"));   
+const Landing = lazy(() => import("./pages/Landing")); 
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 
 // Socket Integration
 import { socket, disconnectSocket } from "./services/socket"; 
@@ -91,7 +91,13 @@ function App() {
   return (
     <>
     <Toaster position="top-right" reverseOrder={false} />
-    <Routes>
+    <Suspense fallback={
+      <div className="h-[100dvh] w-full flex flex-col items-center justify-center bg-background text-accent gap-4 font-semibold">
+        <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+        <span className="text-sm tracking-wide">Loading PulseChat...</span>
+      </div>
+    }>
+      <Routes>
       {/* 🛡️ Public Routes */}
       <Route path="/landing" element={<Landing />} />
       <Route path="/login" element={<Login />} />
@@ -119,6 +125,7 @@ function App() {
       {/* Global Fallback: Catch-all 404 redirects safely to the platform root */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
     </> 
   );
 }

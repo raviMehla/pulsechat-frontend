@@ -12,4 +12,5 @@ export const ChatProvider = ({ children }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useChat = () => useContext(ChatContext);

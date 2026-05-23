@@ -34,7 +34,7 @@ function Register() {
 
     try {
       setIsLoading(true);
-      const { confirmPassword, ...registerPayload } = formData;
+      const { confirmPassword: _confirmPassword, ...registerPayload } = formData;
       
       // 🛡️ ARCHITECTURAL FIX: Pointed to the correct Auth Router mount path
       const response = await api.post("/auth/register", registerPayload);

@@ -9,7 +9,8 @@ function MessageBubble({
   isLastInGroup = true, 
   onReply, 
   onReact, 
-  onDelete 
+  onDelete,
+  onRetry 
 }) {
   const senderId = msg.sender?._id || msg.sender;
   const isOwnMessage = String(senderId) === String(currentUserId);
@@ -217,8 +218,23 @@ function MessageBubble({
                   </span>
                   {isOwnMessage && (
                     <div className="text-[11px] font-bold tracking-tighter">
-                      {msg.readBy?.length > 0 ? <span>✓✓</span> : 
-                      msg.deliveredTo?.length > 0 ? <span>✓✓</span> : <span>✓</span>}
+                      {msg.status === "pending" ? (
+                        <span className="animate-pulse inline-block mr-0.5" title="Sending...">🕒</span>
+                      ) : msg.status === "failed" ? (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onRetry && onRetry(msg); }} 
+                          className="text-red-500 hover:text-red-400 font-bold cursor-pointer" 
+                          title="Failed to send. Click to retry."
+                        >
+                          ⚠️ Retry
+                        </button>
+                      ) : msg.readBy?.length > 0 ? (
+                        <span>✓✓</span>
+                      ) : msg.deliveredTo?.length > 0 ? (
+                        <span>✓✓</span>
+                      ) : (
+                        <span>✓</span>
+                      )}
                     </div>
                   )}
                </div>

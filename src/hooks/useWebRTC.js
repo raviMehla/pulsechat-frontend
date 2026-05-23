@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { getSocket } from "../services/socket";
 import toast from "react-hot-toast";
 
-export const useWebRTC = (currentUserId) => {
+export const useWebRTC = (_currentUserId) => {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [callStatus, setCallStatus] = useState("idle"); // idle, calling, connecting, connected
@@ -263,6 +263,7 @@ export const useWebRTC = (currentUserId) => {
       socket.off("webrtc_answer", handleAnswerEvent);
       socket.off("webrtc_ice_candidate", handleIceCandidateEvent);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 🛡️ Prevent hardware leaks when switching views in SPA

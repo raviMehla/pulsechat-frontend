@@ -28,6 +28,23 @@ function ChatList() {
       }
     };
     fetchChats();
+
+    // 🛡️ Page visibility auto-refresh catches up with background-throttled updates
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        console.log("🟢 Tab visible again. Fetching latest chats and checking socket connection...");
+        fetchChats();
+        const socket = getSocket();
+        if (socket && socket.disconnected) {
+          socket.connect();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from "react";
 import { searchUsers } from "../../services/user.api";
 import { 
@@ -33,6 +34,7 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
         URL.revokeObjectURL(avatarPreview);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chat]);
 
   if (!isOpen || !chat) return null;

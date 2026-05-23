@@ -157,7 +157,7 @@ function Profile() {
   const handlePrivacyUpdate = async (field, value) => {
     setIsLoading(true);
     try {
-      const resData = await updatePrivacy({ [field]: value });
+      await updatePrivacy({ [field]: value });
       toast.success("Privacy settings updated");
       setUser(prev => {
         const updatedUser = {
