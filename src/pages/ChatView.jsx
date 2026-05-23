@@ -18,6 +18,7 @@ import { useChatSocket } from "../hooks/useChatSocket";
 import { MessageSkeleton } from "../components/chat/MessageSkeleton";
 import CallOverlay from "../components/chat/CallOverlay";
 import { useWebRTC } from "../hooks/useWebRTC";
+import { useChat } from "../context/ChatContext";
 
 import toast from "react-hot-toast";
 
@@ -31,6 +32,7 @@ function ChatView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const currentUserId = localStorage.getItem("userId");
+  const { setActiveChat } = useChat();
 
   // Local State
   const [messages, setMessages]   = useState([]);
@@ -77,6 +79,16 @@ function ChatView() {
   } = useWebRTC(currentUserId);
 
   const otherUserIdRef = useRef(null);
+
+  // 🛡️ Synchronize currently active chat ID with global context
+  useEffect(() => {
+    if (id) {
+      setActiveChat(id);
+    }
+    return () => {
+      setActiveChat(null);
+    };
+  }, [id, setActiveChat]);
 
   // ─────────────────────────────────────────────
   // 1️⃣ Load Initial Data

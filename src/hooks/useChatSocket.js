@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { getSocket } from "../services/socket";
 import { markChatAsRead } from "../services/message.api";
 import { getUserStatus } from "../services/user.api";
@@ -15,6 +15,7 @@ export const useChatSocket = ({
   setActiveChatData,
   navigate
 }) => {
+  const readReceiptTimeoutRef = useRef(null);
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
@@ -38,7 +39,13 @@ export const useChatSocket = ({
       });
 
       if (String(msg.sender?._id) !== String(currentUserId)) {
-        markChatAsRead(chatId);
+        if (readReceiptTimeoutRef.current) {
+          clearTimeout(readReceiptTimeoutRef.current);
+        }
+        readReceiptTimeoutRef.current = setTimeout(() => {
+          markChatAsRead(chatId);
+          readReceiptTimeoutRef.current = null;
+        }, 500); // 🛡️ Debounce 500ms
       }
     };
 
@@ -142,6 +149,13 @@ export const useChatSocket = ({
 
     // Cleanup
     return () => {
+      socket.emit("leave_chat", chatId); // 🛡️ Prevent ghost room emissions
+
+      if (readReceiptTimeoutRef.current) {
+        clearTimeout(readReceiptTimeoutRef.current);
+        readReceiptTimeoutRef.current = null;
+      }
+
       socket.off("connect",          joinRoom);
       socket.off("connect",          onReconnect);
       socket.off("message_received", onMessageReceived);

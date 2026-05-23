@@ -265,6 +265,13 @@ export const useWebRTC = (currentUserId) => {
     };
   }, []);
 
+  // 🛡️ Prevent hardware leaks when switching views in SPA
+  useEffect(() => {
+    return () => {
+      cleanupCall();
+    };
+  }, []);
+
   return {
     localStream,
     remoteStream,
