@@ -37,18 +37,23 @@ self.addEventListener('notificationclick', (event) => {
   
   // If the backend sent a chatId in the payload data, route directly to it
   const chatId = event.notification.data?.chatId;
-  const urlToOpen = chatId ? `${self.location.origin}/chat/${chatId}` : self.location.origin;
+  const targetPath = chatId ? `/?chatId=${chatId}` : '/';
+  const urlToOpen = new URL(targetPath, self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // If the app is already open, just focus it and navigate
+      // If the app is already open in any tab, focus it and route via postMessage
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
+        if ('focus' in client) {
+          client.focus();
+          if (chatId) {
+            client.postMessage({ type: 'NAVIGATE', chatId });
+          }
+          return;
         }
       }
-      // If app is closed, open a new window to the chat
+      // If app is closed, open a new window to the chat query route
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }

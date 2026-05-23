@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion"; // 🛡️ ARCHITECTURAL UPGRADE: The Physics Engine
+import DOMPurify from "isomorphic-dompurify";
 
 function MessageBubble({ 
   msg, 
@@ -207,7 +208,10 @@ function MessageBubble({
                   </button>
                 </div>
               ) : (
-                <span className="whitespace-pre-wrap leading-relaxed">{msg.content || "Unsupported message type"}</span>
+                <span 
+                  className="whitespace-pre-wrap leading-relaxed" 
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content || "Unsupported message type") }}
+                />
               )}
             </div>
             

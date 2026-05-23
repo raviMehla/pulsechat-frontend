@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
-import { Toaster } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
+import { useRegisterSW } from "virtual:pwa-register/react";
 
 // Layouts & Security
 import AppLayout from "./components/common/AppLayout";
@@ -41,6 +42,81 @@ function App() {
   const currentUserId = localStorage.getItem("userId");
   const token = localStorage.getItem("token");
   const navigate = useNavigate();
+
+  // 🛡️ PWA Update Notification Listener
+  const {
+    needRefresh: [needRefresh, setNeedRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegistered(r) {
+      console.log("PWA Service Worker registered:", r);
+    },
+    onRegisterError(error) {
+      console.error("PWA SW registration failed:", error);
+    }
+  });
+
+  useEffect(() => {
+    if (needRefresh) {
+      toast((t) => (
+        <div className="flex flex-col gap-2 p-1 text-sm font-medium">
+          <p className="text-textPrimary font-semibold">New version available!</p>
+          <p className="text-xs text-textMuted">Reload the app to apply the latest security updates.</p>
+          <div className="flex gap-2 justify-end mt-1">
+            <button
+              onClick={() => {
+                updateServiceWorker(true);
+                toast.dismiss(t.id);
+              }}
+              className="px-3 py-1 bg-accent text-white rounded-md text-xs font-semibold hover:bg-accentHover transition-colors cursor-pointer"
+            >
+              Update Now
+            </button>
+            <button
+              onClick={() => {
+                setNeedRefresh(false);
+                toast.dismiss(t.id);
+              }}
+              className="px-3 py-1 bg-background border border-borderSubtle text-textPrimary rounded-md text-xs font-semibold hover:bg-surface transition-colors cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ), { 
+        duration: Infinity,
+        position: "bottom-left",
+      });
+    }
+  }, [needRefresh, updateServiceWorker, setNeedRefresh]);
+
+  // 🛡️ Service Worker Deep Linking & Navigation Listener
+  useEffect(() => {
+    // Check query params on cold start
+    const params = new URLSearchParams(window.location.search);
+    const qChatId = params.get("chatId");
+    if (qChatId) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      navigate(`/chat/${qChatId}`);
+    }
+
+    // Listen for background messages from service worker
+    const handleSWMessage = (e) => {
+      if (e.data && e.data.type === "NAVIGATE" && e.data.chatId) {
+        console.log("🚀 Deep linking from SW message to chat:", e.data.chatId);
+        navigate(`/chat/${e.data.chatId}`);
+      }
+    };
+
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.addEventListener("message", handleSWMessage);
+    }
+    return () => {
+      if (navigator.serviceWorker) {
+        navigator.serviceWorker.removeEventListener("message", handleSWMessage);
+      }
+    };
+  }, [navigate]);
 
   // 🛡️ Clear chunk retry reload state once the application successfully mounts
   useEffect(() => {

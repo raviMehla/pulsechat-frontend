@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from "react";
 import { searchUsers } from "../../services/user.api";
+import FocusLock from "react-focus-lock";
 import { 
   updateGroupDetails, // 🛡️ Ensure you create this API wrapper!
   addUserToGroup, 
@@ -135,7 +136,8 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
   // RENDER
   // =====================================
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <FocusLock>
+      <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-surface border border-borderSubtle p-6 rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]">
         
         {/* Header */}
@@ -299,6 +301,7 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
 
       </div>
     </div>
+    </FocusLock>
   );
 }
 

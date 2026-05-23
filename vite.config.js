@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       // 🛡️ ARCHITECTURAL FIX: Force PWA generation during local development
       devOptions: {
         enabled: true

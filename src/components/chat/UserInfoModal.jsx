@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
-import { Avatar } from "../ui/Avatar"; // Assuming you have an Avatar component
+import { Avatar } from "../ui/Avatar";
+import FocusLock from "react-focus-lock";
 
 function UserInfoModal({ isOpen, onClose, chat, currentUserId, isBlockedByMe, onToggleBlock, onDeleteChat }) {
   console.log("UserInfoModal Render Check:", { isOpen, chatExists: !!chat, isGroup: chat?.isGroup });
@@ -10,7 +11,8 @@ function UserInfoModal({ isOpen, onClose, chat, currentUserId, isBlockedByMe, on
   if (!targetUser) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+    <FocusLock>
+      <div role="dialog" aria-modal="true" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
       <div className="bg-surface border border-borderSubtle p-6 rounded-2xl w-full max-w-sm shadow-2xl flex flex-col items-center">
         
         {/* Header / Close */}
@@ -64,7 +66,8 @@ function UserInfoModal({ isOpen, onClose, chat, currentUserId, isBlockedByMe, on
         </div>
 
       </div>
-    </div>,
+    </div>
+    </FocusLock>,
     document.body
   );
 }
