@@ -13,6 +13,7 @@ export const useWebRTC = (currentUserId) => {
   const peerConnection = useRef(null);
   const currentCallTarget = useRef(null);
   const localStreamRef = useRef(null);
+  const callTypeRef = useRef("audio"); // 🛡️ Fix stale closure in socket event listener
 
   const rtcConfig = {
     iceServers: [
@@ -62,6 +63,7 @@ export const useWebRTC = (currentUserId) => {
           localStreamRef.current = stream;
           setIsMuted(false);
           setCallType("audio"); // Gracefully degrade state to audio
+          callTypeRef.current = "audio";
           toast.success("Connected via voice call (camera unavailable)");
         } catch (audioErr) {
           toast.error("Microphone access denied!");
@@ -99,12 +101,14 @@ export const useWebRTC = (currentUserId) => {
   const initiateCall = (targetUserId, type = "audio") => {
     setCallStatus("calling");
     setCallType(type);
+    callTypeRef.current = type;
     currentCallTarget.current = targetUserId;
   };
 
   const acceptCall = (callerId, type = "audio") => {
     setCallStatus("connecting");
     setCallType(type);
+    callTypeRef.current = type;
     currentCallTarget.current = callerId;
     const socket = getSocket();
     socket.emit("accept_call", { to: callerId });
@@ -116,7 +120,7 @@ export const useWebRTC = (currentUserId) => {
       if (!targetUserId) return;
 
       setCallStatus("connecting");
-      const pc = await initWebRTC(targetUserId, callType);
+      const pc = await initWebRTC(targetUserId, callTypeRef.current);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -134,7 +138,7 @@ export const useWebRTC = (currentUserId) => {
   const handleIncomingOffer = async ({ from, sdp }) => {
     try {
       setCallStatus("connecting");
-      const pc = await initWebRTC(from, callType);
+      const pc = await initWebRTC(from, callTypeRef.current);
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -185,6 +189,7 @@ export const useWebRTC = (currentUserId) => {
     setRemoteStream(null);
     setCallStatus("idle");
     setCallType("audio");
+    callTypeRef.current = "audio";
     setIsMuted(false);
     setIsVideoMuted(false);
     currentCallTarget.current = null;
