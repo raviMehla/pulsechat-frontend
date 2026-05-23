@@ -1,6 +1,7 @@
 // src/hooks/useLogout.js
 import { useNavigate } from "react-router-dom";
 import { disconnectSocket } from "../services/socket";
+import localforage from "localforage";
 
 export const useLogout = () => {
   const navigate = useNavigate();
@@ -10,6 +11,9 @@ export const useLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
     
+    // Clear offline IndexedDB cache securely
+    localforage.clear().catch(err => console.error("Failed to clear localforage on logout:", err));
+
     // Optional: Clear any other cached data if you have it
     // localStorage.removeItem("userProfile");
 

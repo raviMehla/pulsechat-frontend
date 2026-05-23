@@ -6,6 +6,7 @@ import CreateGroupModal from "../components/chat/CreateGroupModal";
 import SearchUserModal from "../components/chat/SearchUserModal"; 
 import { getChats } from "../services/chat.api";
 import { getSocket } from "../services/socket"; 
+import localforage from "localforage"; 
 
 function ChatList() {
   const [chats, setChats] = useState([]);
@@ -20,14 +21,30 @@ function ChatList() {
     const fetchChats = async () => {
       try {
         const data = await getChats();
-        setChats(Array.isArray(data) ? data : []);
+        const chatsData = Array.isArray(data) ? data : [];
+        setChats(chatsData);
+        await localforage.setItem("chats", chatsData);
       } catch (error) {
         console.error("Error fetching chats:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchChats();
+
+    const loadCachedChats = async () => {
+      try {
+        const cachedChats = await localforage.getItem("chats");
+        if (cachedChats && Array.isArray(cachedChats)) {
+          setChats(cachedChats);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Failed to load cached chats:", error);
+      }
+      fetchChats();
+    };
+
+    loadCachedChats();
 
     // 🛡️ Page visibility auto-refresh catches up with background-throttled updates
     const handleVisibilityChange = () => {
@@ -46,6 +63,15 @@ function ChatList() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
+
+  // Persist local chats to cache on any update (socket arrivals, deletions, edits)
+  useEffect(() => {
+    if (!loading) {
+      localforage.setItem("chats", chats).catch((err) => {
+        console.error("Failed to persist chats to IndexedDB:", err);
+      });
+    }
+  }, [chats, loading]);
 
   useEffect(() => {
     const socket = getSocket();

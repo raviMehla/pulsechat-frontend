@@ -1,6 +1,7 @@
 import axios from "axios";
 import toast from "react-hot-toast"; 
 import { getSocket } from "./socket"; // Assuming you export your socket instance from here
+import localforage from "localforage";
 
 const api = axios.create({
   // Dynamically points to Render in production, or relative path locally
@@ -42,6 +43,7 @@ api.interceptors.response.use(
         localStorage.removeItem("token");
         localStorage.removeItem("userId");
         localStorage.removeItem("user");
+        localforage.clear().catch(err => console.error("Failed to clear localforage on session expiration:", err));
         
         // 🚨 CRITICAL: Sever the WebSocket connection immediately to prevent ghost sessions
         const socket = getSocket();

@@ -54,7 +54,7 @@ function ChatItem({ chat }) {
           {/* Unread Badge */}
           {chat.unread > 0 && (
             <span className="bg-accent text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 shadow-sm">
-              {chat.unread}
+              {chat.unread > 99 ? "99+" : chat.unread}
             </span>
           )}
         </div>

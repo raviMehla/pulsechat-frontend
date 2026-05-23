@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { useRegisterSW } from "virtual:pwa-register/react";
+import localforage from "localforage";
 
 // Layouts & Security
 import AppLayout from "./components/common/AppLayout";
@@ -131,6 +132,7 @@ function App() {
         localStorage.removeItem("token");
         localStorage.removeItem("userId");
         localStorage.removeItem("user");
+        localforage.clear().catch(err => console.error("Failed to clear localforage:", err));
         disconnectSocket();
         navigate("/login", { replace: true });
       }

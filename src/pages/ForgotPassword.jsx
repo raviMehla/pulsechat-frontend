@@ -54,7 +54,7 @@ function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background text-textPrimary p-4">
+    <div className="min-h-dvh flex items-center justify-center bg-background text-textPrimary p-4">
       <div className="max-w-md w-full bg-surface border border-borderSubtle rounded-2xl shadow-2xl p-8 animate-fadeIn">
         
         {/* Header */}

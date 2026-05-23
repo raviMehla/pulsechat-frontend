@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef, useCallback } from "react";
 import api from "../services/api";
 import UserInfoModal from "../components/chat/UserInfoModal";
+import localforage from "localforage";
 import { 
   getMessages, 
   sendMessage, 
@@ -127,21 +128,57 @@ function ChatView() {
   // 1️⃣ Load Initial Data
   // ─────────────────────────────────────────────
   useEffect(() => {
+    // Reset initial loading state asynchronously to prevent ESLint cascading render warning
+    Promise.resolve().then(() => {
+      setIsInitialLoading(true);
+    });
+
     const fetchMessages = async () => {
       try {
-        setIsInitialLoading(true);
         const data = await getMessages(id);
-        setMessages(data.messages || []);
+        const messagesData = data.messages || [];
+        setMessages(messagesData);
         setNextCursor(data.nextCursor || null); // 🛡️ Capture cursor
         await markChatAsRead(id);
+        await localforage.setItem(`messages_${id}`, {
+          messages: messagesData,
+          nextCursor: data.nextCursor || null
+        });
       } catch (err) {
         console.error("Messages fetch error:", err);
       } finally {
         setIsInitialLoading(false); // 🛡️ End skeleton
       }
     };
-    fetchMessages();
+
+    const loadCachedMessages = async () => {
+      try {
+        const cachedData = await localforage.getItem(`messages_${id}`);
+        if (cachedData && cachedData.messages) {
+          setMessages(cachedData.messages);
+          setNextCursor(cachedData.nextCursor || null);
+          setIsInitialLoading(false);
+        }
+      } catch (error) {
+        console.error("Failed to load cached messages:", error);
+      }
+      fetchMessages();
+    };
+
+    loadCachedMessages();
   }, [id]);
+
+  // Persist messages to cache on any update (socket arrivals, reactions, deletions, retry queue updates)
+  useEffect(() => {
+    if (!isInitialLoading && id) {
+      localforage.setItem(`messages_${id}`, {
+        messages,
+        nextCursor
+      }).catch((err) => {
+        console.error("Failed to persist messages to IndexedDB:", err);
+      });
+    }
+  }, [messages, nextCursor, id, isInitialLoading]);
 
   useEffect(() => {
     const fetchChatInfo = async () => {
@@ -239,9 +276,17 @@ function ChatView() {
     };
   }, [previewUrl]);
 
-  // 🛡️ Abort active media uploads on unmount to prevent state updates on unmounted component
+  // 🛡️ Abort active media uploads on unmount or session expiration to prevent background resource waste
   useEffect(() => {
+    const handleAuthExpired = () => {
+      if (uploadAbortControllerRef.current) {
+        console.log("🔒 Session expired. Aborting active media uploads...");
+        uploadAbortControllerRef.current.abort();
+      }
+    };
+    window.addEventListener("auth_expired", handleAuthExpired);
     return () => {
+      window.removeEventListener("auth_expired", handleAuthExpired);
       if (uploadAbortControllerRef.current) {
         uploadAbortControllerRef.current.abort();
       }
