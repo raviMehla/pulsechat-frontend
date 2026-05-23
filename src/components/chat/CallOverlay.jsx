@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { Avatar } from "../ui/Avatar";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 /* ─────────────────────────────────────────────
@@ -162,27 +162,33 @@ function CallOverlay({
   const [speakerOff, setSpeakerOff] = useState(false);
   const timer = useCallTimer(callStatus === "connected");
 
-  const setAudio = (el) => {
+  const setAudio = useCallback((el) => {
     audioRef.current = el;
     if (el && remoteStream) {
-      el.srcObject = remoteStream;
+      if (el.srcObject !== remoteStream) {
+        el.srcObject = remoteStream;
+      }
       el.muted = speakerOff;
     }
-  };
+  }, [remoteStream, speakerOff]);
 
-  const setLocalVideo = (el) => {
+  const setLocalVideo = useCallback((el) => {
     localVideoRef.current = el;
     if (el && localStream) {
-      el.srcObject = localStream;
+      if (el.srcObject !== localStream) {
+        el.srcObject = localStream;
+      }
     }
-  };
+  }, [localStream]);
 
-  const setRemoteVideo = (el) => {
+  const setRemoteVideo = useCallback((el) => {
     remoteVideoRef.current = el;
     if (el && remoteStream) {
-      el.srcObject = remoteStream;
+      if (el.srcObject !== remoteStream) {
+        el.srcObject = remoteStream;
+      }
     }
-  };
+  }, [remoteStream]);
 
   /* Speaker Off/On (Mutes the incoming HTML audio/video elements on Web) */
   useEffect(() => {
