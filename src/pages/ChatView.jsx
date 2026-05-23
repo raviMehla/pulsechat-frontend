@@ -53,6 +53,7 @@ function ChatView() {
   const [nextCursor, setNextCursor] = useState(null);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const observerTarget = useRef(null);
+  const isFetchingMoreRef = useRef(false);
   const [chatImage, setChatImage] = useState(null);
   const [isUserInfoOpen, setIsUserInfoOpen] = useState(false);
   // WebRTC Call States
@@ -144,9 +145,10 @@ function ChatView() {
   }, [id, currentUserId]);
 
   const loadMoreMessages = useCallback(async () => {
-    if (!nextCursor) return;
+    if (!nextCursor || isFetchingMoreRef.current) return;
     
     try {
+      isFetchingMoreRef.current = true;
       setIsFetchingMore(true);
       
       // Capture exact scroll height BEFORE prepending new elements
@@ -171,6 +173,7 @@ function ChatView() {
       console.error("Failed to load older messages", error);
       toast.error("Failed to sync message history");
     } finally {
+      isFetchingMoreRef.current = false;
       setIsFetchingMore(false);
     }
   }, [id, nextCursor]);
@@ -178,7 +181,7 @@ function ChatView() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && nextCursor && !isFetchingMore && !isInitialLoading) {
+        if (entries[0].isIntersecting && nextCursor && !isFetchingMoreRef.current && !isInitialLoading) {
           loadMoreMessages();
         }
       },
@@ -188,7 +191,7 @@ function ChatView() {
     if (observerTarget.current) observer.observe(observerTarget.current);
     
     return () => observer.disconnect();
-  }, [nextCursor, isFetchingMore, isInitialLoading, loadMoreMessages]);
+  }, [nextCursor, isInitialLoading, loadMoreMessages]);
 
   // ─────────────────────────────────────────────
   // 2️⃣ Attach Modular Socket Engine
@@ -231,6 +234,15 @@ function ChatView() {
       socket.off("call_cancelled");
     };
   }, []);
+
+  // 🛡️ Revoke the preview Object URL when previewUrl changes or component unmounts to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (previewUrl && previewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
   // ─────────────────────────────────────────────
   // 3️⃣ Component Methods (UI Handlers)
   // ─────────────────────────────────────────────
@@ -282,11 +294,8 @@ function ChatView() {
     }
 
     setSelectedFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreviewUrl(reader.result);
-    };
-    reader.readAsDataURL(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
   };
 
   const clearPreview = () => {

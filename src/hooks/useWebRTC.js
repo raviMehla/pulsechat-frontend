@@ -13,7 +13,9 @@ export const useWebRTC = (currentUserId) => {
   const peerConnection = useRef(null);
   const currentCallTarget = useRef(null);
   const localStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
   const callTypeRef = useRef("audio"); // 🛡️ Fix stale closure in socket event listener
+  const iceCandidateQueue = useRef([]);
 
   const rtcConfig = {
     iceServers: [
@@ -81,7 +83,9 @@ export const useWebRTC = (currentUserId) => {
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
     pc.ontrack = (event) => {
-      setRemoteStream(event.streams[0]);
+      const stream = event.streams[0];
+      setRemoteStream(stream);
+      remoteStreamRef.current = stream;
       setCallStatus("connected");
     };
 
@@ -135,11 +139,24 @@ export const useWebRTC = (currentUserId) => {
     }
   };
 
+  const processQueuedCandidates = async () => {
+    if (!peerConnection.current || !peerConnection.current.remoteDescription) return;
+    while (iceCandidateQueue.current.length > 0) {
+      const candidate = iceCandidateQueue.current.shift();
+      try {
+        await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (err) {
+        console.error("Error adding queued ice candidate:", err);
+      }
+    }
+  };
+
   const handleIncomingOffer = async ({ from, sdp }) => {
     try {
       setCallStatus("connecting");
       const pc = await initWebRTC(from, callTypeRef.current);
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      await processQueuedCandidates(); // 🛡️ Flush early candidates
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
@@ -185,6 +202,11 @@ export const useWebRTC = (currentUserId) => {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
     }
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach(track => track.stop());
+      remoteStreamRef.current = null;
+    }
+    iceCandidateQueue.current = []; // 🛡️ Flush queue
     setLocalStream(null);
     setRemoteStream(null);
     setCallStatus("idle");
@@ -209,17 +231,24 @@ export const useWebRTC = (currentUserId) => {
 
     const handleAnswerEvent = async ({ sdp }) => {
       if (peerConnection.current) {
-        await peerConnection.current.setRemoteDescription(new RTCSessionDescription(sdp));
+        try {
+          await peerConnection.current.setRemoteDescription(new RTCSessionDescription(sdp));
+          await processQueuedCandidates(); // 🛡️ Flush early candidates
+        } catch (err) {
+          console.error("Error setting remote description or processing candidates:", err);
+        }
       }
     };
 
     const handleIceCandidateEvent = async ({ candidate }) => {
-      if (peerConnection.current) {
+      if (peerConnection.current && peerConnection.current.remoteDescription) {
         try {
           await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (err) {
-          console.error("Error adding received ice candidate", err);
+          console.error("Error adding received ice candidate:", err);
         }
+      } else {
+        iceCandidateQueue.current.push(candidate);
       }
     };
 
