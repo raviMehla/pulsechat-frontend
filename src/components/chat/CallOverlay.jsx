@@ -408,7 +408,7 @@ function CallOverlay({
           />
 
           <Avatar
-            src={chatImage}
+            src={isIncoming ? incomingCall.callerAvatar : chatImage}
             alt={callerLabel}
             size="xl"
             className="relative z-10 transition-shadow duration-700"

@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useLayoutEffect } from "react";
 import api from "../services/api";
 import UserInfoModal from "../components/chat/UserInfoModal";
 import { 
@@ -16,9 +16,8 @@ import { getUserStatus, getMyProfile, toggleBlockUser } from "../services/user.a
 import { getChats } from "../services/chat.api";
 import { useChatSocket } from "../hooks/useChatSocket"; 
 import { MessageSkeleton } from "../components/chat/MessageSkeleton";
-import CallOverlay from "../components/chat/CallOverlay";
-import { useWebRTC } from "../hooks/useWebRTC";
 import { useChat } from "../context/ChatContext";
+import { useCall } from "../context/CallContext";
 
 import toast from "react-hot-toast";
 
@@ -59,24 +58,11 @@ function ChatView() {
   const scrollContainerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const lastTypedTimeRef = useRef(0);
+  const scrollHeightBeforeRef = useRef(0);
+  const uploadAbortControllerRef = useRef(null);
   const [chatImage, setChatImage] = useState(null);
   const [isUserInfoOpen, setIsUserInfoOpen] = useState(false);
-  // WebRTC Call States
-  const [isCalling, setIsCalling] = useState(false);
-  const [incomingCall, setIncomingCall] = useState(null);
-  const { 
-    localStream, 
-    remoteStream, 
-    callStatus, 
-    callType, 
-    isMuted, 
-    isVideoMuted, 
-    toggleMute, 
-    toggleVideoMute, 
-    initiateCall, 
-    acceptCall, 
-    cleanupCall 
-  } = useWebRTC(currentUserId);
+  const { startCall } = useCall();
 
   const otherUserIdRef = useRef(null);
 
@@ -166,25 +152,13 @@ function ChatView() {
       isFetchingMoreRef.current = true;
       setIsFetchingMore(true);
       
-      // Capture exact scroll height BEFORE prepending new elements
       const container = scrollContainerRef.current;
-      const previousScrollHeight = container ? container.scrollHeight : 0;
+      scrollHeightBeforeRef.current = container ? container.scrollHeight : 0;
 
       const data = await getMessages(id, nextCursor);
       
-      // Prepend older messages to the top of the array
       setMessages(prev => [...(data.messages || []), ...prev]);
       setNextCursor(data.nextCursor || null);
-
-      // Restore scroll position after React renders the new DOM nodes
-      setTimeout(() => {
-        const currentContainer = scrollContainerRef.current;
-        if (currentContainer) {
-          const currentScrollHeight = currentContainer.scrollHeight;
-          currentContainer.scrollTop = currentScrollHeight - previousScrollHeight;
-        }
-      }, 0);
-
     } catch (error) {
       console.error("Failed to load older messages", error);
       toast.error("Failed to sync message history");
@@ -193,6 +167,14 @@ function ChatView() {
       setIsFetchingMore(false);
     }
   }, [id, nextCursor]);
+
+  useLayoutEffect(() => {
+    if (scrollHeightBeforeRef.current > 0 && scrollContainerRef.current) {
+      const newScrollHeight = scrollContainerRef.current.scrollHeight;
+      scrollContainerRef.current.scrollTop = newScrollHeight - scrollHeightBeforeRef.current;
+      scrollHeightBeforeRef.current = 0;
+    }
+  }, [messages]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -225,31 +207,7 @@ function ChatView() {
     navigate
   });
 
-  // WebRTC Call Socket Listeners
-  useEffect(() => {
-    const socket = getSocket();
-    if (!socket) return;
 
-    socket.on("incoming_call", (data) => setIncomingCall(data));
-
-    socket.on("call_rejected", () => {
-      setIsCalling(false);
-      cleanupCall(); // Free mic
-      toast.error("Call declined");
-    });
-
-    socket.on("call_cancelled", () => {
-      setIncomingCall(null);
-      cleanupCall(); // Free mic
-      toast("Call ended", { icon: '📵' });
-    });
-
-    return () => {
-      socket.off("incoming_call");
-      socket.off("call_rejected");
-      socket.off("call_cancelled");
-    };
-  }, []);
 
   // 🛡️ Revoke the preview Object URL when previewUrl changes or component unmounts to prevent memory leaks
   useEffect(() => {
@@ -259,6 +217,15 @@ function ChatView() {
       }
     };
   }, [previewUrl]);
+
+  // 🛡️ Abort active media uploads on unmount to prevent state updates on unmounted component
+  useEffect(() => {
+    return () => {
+      if (uploadAbortControllerRef.current) {
+        uploadAbortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Cleanup typing timeout and emit stop_typing on unmount or chat change
   useEffect(() => {
@@ -336,7 +303,10 @@ function ChatView() {
     try {
       if (selectedFile) {
         setIsUploading(true);
-        await sendMedia(id, selectedFile, replyingTo?._id);
+        const controller = new AbortController();
+        uploadAbortControllerRef.current = controller;
+
+        await sendMedia(id, selectedFile, replyingTo?._id, controller.signal);
         clearPreview();
       } else {
         if (!input.trim()) return;
@@ -356,6 +326,10 @@ function ChatView() {
       lastTypedTimeRef.current = 0;
 
     } catch (err) {
+      if (err.name === "CanceledError" || err.code === "ERR_CANCELED") {
+        console.log("Upload aborted.");
+        return;
+      }
       if (err.response?.status === 403) {
         toast.error(err.response.data.message, { duration: 4000 });
         if (err.response.data.message.includes("You have blocked")) {
@@ -366,6 +340,7 @@ function ChatView() {
         console.error("Send Message/Media Error:", err);
       }
     } finally {
+      uploadAbortControllerRef.current = null;
       setIsUploading(false);
     }
   };
@@ -445,51 +420,7 @@ function ChatView() {
 
   const handleInitiateCall = (type = "audio") => {
     if (!otherUserIdRef.current) return;
-    setIsCalling(true);
-    
-    // 🛡️ THE FIX: Grab our actual name from localStorage so the receiver knows who is calling!
-    const myUserString = localStorage.getItem("user");
-    const myName = myUserString ? JSON.parse(myUserString).name : "Someone";
-
-    // 1. Ring the UI (Phase 1 call_user)
-    getSocket().emit("call_user", {
-      userToCall: otherUserIdRef.current,
-      from: currentUserId,
-      callerName: myName,
-      type: type,
-      chatId: id
-    });
-
-    // 2. Start WebRTC call state
-    initiateCall(otherUserIdRef.current, type);
-  };
-
-  const handleAcceptCall = () => {
-    if (!incomingCall) return;
-    toast.success("Connecting securely...");
-    
-    // 🔥 Accept Call (emits accept_call, caller generates offer)
-    acceptCall(incomingCall.from, incomingCall.type || "audio");
-  };
-
-  const handleEndCall = () => {
-    // Hang up active connection
-    cleanupCall();
-    setIsCalling(false);
-    setIncomingCall(null);
-    getSocket().emit("cancel_call", { to: otherUserIdRef.current || incomingCall?.from });
-  };
-
-  const handleCancelCall = () => {
-    cleanupCall(); 
-    setIsCalling(false);
-    if (otherUserIdRef.current) getSocket().emit("cancel_call", { to: otherUserIdRef.current });
-  };
-
-  const handleDeclineCall = () => {
-    cleanupCall();
-    getSocket().emit("reject_call", { to: incomingCall.from });
-    setIncomingCall(null);
+    startCall(otherUserIdRef.current, type, chatName, chatImage, id);
   };
  
   // ─────────────────────────────────────────────
@@ -654,25 +585,6 @@ function ChatView() {
         isBlockedByMe={isBlockedByMe}
         onToggleBlock={handleToggleBlock}
         onDeleteChat={handleDeleteChat}
-      />
-      <CallOverlay 
-        isCalling={isCalling}
-        incomingCall={incomingCall}
-        chatName={chatName}
-        chatImage={chatImage}
-        callStatus={callStatus}
-        localStream={localStream}
-        remoteStream={remoteStream}
-        callType={callType}
-        isMuted={isMuted}             // 🛡️ Pass Mute State
-        isVideoMuted={isVideoMuted}
-        onToggleMute={toggleMute}     // 🛡️ Pass Hardware Toggle
-        onToggleVideoMute={toggleVideoMute}
-        onAccept={handleAcceptCall}
-        onDecline={handleDeclineCall}
-        onCancel={handleCancelCall}
-        onEndCall={handleEndCall}
-        myAvatar={localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).profilePic : null}
       />
     </div>
   );

@@ -22,7 +22,7 @@ export const sendMessage = async ({ chatId, content, replyTo }) => {
 };
 
 // Send media (image/video/file)
-export const sendMedia = async (chatId, file, replyTo) => {
+export const sendMedia = async (chatId, file, replyTo, signal = null) => {
   const formData = new FormData();
   formData.append("chatId", chatId);
   formData.append("file", file);
@@ -32,6 +32,7 @@ export const sendMedia = async (chatId, file, replyTo) => {
     headers: {
       "Content-Type": "multipart/form-data",
     },
+    signal,
   });
   return data;
 };

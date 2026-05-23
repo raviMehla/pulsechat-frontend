@@ -5,11 +5,14 @@ import "./index.css";
 
 import { BrowserRouter } from "react-router-dom";
 import { ChatProvider } from "./context/ChatContext";
+import { CallProvider } from "./context/CallContext";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
     <ChatProvider>
-      <App />
+      <CallProvider>
+        <App />
+      </CallProvider>
     </ChatProvider>
   </BrowserRouter>
 );
