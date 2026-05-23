@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Avatar } from "../ui/Avatar"; 
 
-function ChatHeader({ chatName, chatImage, isOnline, isGroup, participantCount, onSearchClick, onInfoClick, onCallClick }) {
+function ChatHeader({ chatName, chatImage, isOnline, isGroup, participantCount, onSearchClick, onInfoClick, onCallClick, onVideoCallClick }) {
   const navigate = useNavigate();
 
   return (
@@ -44,13 +44,22 @@ function ChatHeader({ chatName, chatImage, isOnline, isGroup, participantCount, 
       {/* Right Section: Actions - 🛡️ UPGRADED to w-11 h-11 (44x44dp) */}
       <div className="flex items-center gap-1">
         {!isGroup && (
-          <button 
-            onClick={onCallClick}
-            className="text-textMuted hover:text-green-500 transition-colors w-11 h-11 flex items-center justify-center rounded-full hover:bg-background"
-            title="Start Voice Call"
-          >
-            📞
-          </button>
+          <>
+            <button 
+              onClick={onCallClick}
+              className="text-textMuted hover:text-green-500 transition-colors w-11 h-11 flex items-center justify-center rounded-full hover:bg-background"
+              title="Start Voice Call"
+            >
+              📞
+            </button>
+            <button 
+              onClick={onVideoCallClick}
+              className="text-textMuted hover:text-green-500 transition-colors w-11 h-11 flex items-center justify-center rounded-full hover:bg-background"
+              title="Start Video Call"
+            >
+              📹
+            </button>
+          </>
         )}
         
         <button 

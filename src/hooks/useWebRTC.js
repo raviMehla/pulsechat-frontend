@@ -6,7 +6,9 @@ export const useWebRTC = (currentUserId) => {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [callStatus, setCallStatus] = useState("idle"); // idle, calling, connecting, connected
-  const [isMuted, setIsMuted] = useState(false); // 🛡️ NEW: Hardware Mute State
+  const [callType, setCallType] = useState("audio"); // audio, video
+  const [isMuted, setIsMuted] = useState(false); // 🛡️ Hardware Mute State
+  const [isVideoMuted, setIsVideoMuted] = useState(false); // 🛡️ Hardware Camera State
   
   const peerConnection = useRef(null);
   const currentCallTarget = useRef(null);
@@ -33,18 +35,42 @@ export const useWebRTC = (currentUserId) => {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [callStatus]);
 
-  const initWebRTC = async (targetUserId) => {
+  const initWebRTC = async (targetUserId, type = "audio") => {
     currentCallTarget.current = targetUserId;
     
     let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const constraints = {
+        audio: true,
+        video: type === "video" ? {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user"
+        } : false
+      };
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
       setLocalStream(stream);
       localStreamRef.current = stream;
       setIsMuted(false); // Reset mute state on new call
+      setIsVideoMuted(false); // Reset video mute state on new call
     } catch (err) {
-      toast.error("Microphone access denied!");
-      throw err;
+      if (type === "video") {
+        console.warn("Video access denied or unavailable, trying audio-only fallback...", err);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          setLocalStream(stream);
+          localStreamRef.current = stream;
+          setIsMuted(false);
+          setCallType("audio"); // Gracefully degrade state to audio
+          toast.success("Connected via voice call (camera unavailable)");
+        } catch (audioErr) {
+          toast.error("Microphone access denied!");
+          throw audioErr;
+        }
+      } else {
+        toast.error("Microphone access denied!");
+        throw err;
+      }
     }
 
     const pc = new RTCPeerConnection(rtcConfig);
@@ -70,13 +96,15 @@ export const useWebRTC = (currentUserId) => {
     return pc;
   };
 
-  const initiateCall = (targetUserId) => {
+  const initiateCall = (targetUserId, type = "audio") => {
     setCallStatus("calling");
+    setCallType(type);
     currentCallTarget.current = targetUserId;
   };
 
-  const acceptCall = (callerId) => {
+  const acceptCall = (callerId, type = "audio") => {
     setCallStatus("connecting");
+    setCallType(type);
     currentCallTarget.current = callerId;
     const socket = getSocket();
     socket.emit("accept_call", { to: callerId });
@@ -88,7 +116,7 @@ export const useWebRTC = (currentUserId) => {
       if (!targetUserId) return;
 
       setCallStatus("connecting");
-      const pc = await initWebRTC(targetUserId);
+      const pc = await initWebRTC(targetUserId, callType);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -106,7 +134,7 @@ export const useWebRTC = (currentUserId) => {
   const handleIncomingOffer = async ({ from, sdp }) => {
     try {
       setCallStatus("connecting");
-      const pc = await initWebRTC(from);
+      const pc = await initWebRTC(from, callType);
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -133,6 +161,17 @@ export const useWebRTC = (currentUserId) => {
     }
   };
 
+  // 🛡️ ARCHITECTURAL UPGRADE: Hardware Video Camera Control
+  const toggleVideoMute = () => {
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled; // Physically cuts the camera stream
+        setIsVideoMuted(!videoTrack.enabled);
+      }
+    }
+  };
+
   const cleanupCall = () => {
     if (peerConnection.current) {
       peerConnection.current.close();
@@ -145,7 +184,9 @@ export const useWebRTC = (currentUserId) => {
     setLocalStream(null);
     setRemoteStream(null);
     setCallStatus("idle");
+    setCallType("audio");
     setIsMuted(false);
+    setIsVideoMuted(false);
     currentCallTarget.current = null;
   };
 
@@ -194,8 +235,11 @@ export const useWebRTC = (currentUserId) => {
     localStream,
     remoteStream,
     callStatus,
+    callType,
     isMuted,
+    isVideoMuted,
     toggleMute, // Exported so CallOverlay can use it
+    toggleVideoMute, // Exported so CallOverlay can use it
     initiateCall,
     acceptCall,
     cleanupCall

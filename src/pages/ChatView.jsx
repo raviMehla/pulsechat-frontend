@@ -58,7 +58,19 @@ function ChatView() {
   // WebRTC Call States
   const [isCalling, setIsCalling] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
-  const { remoteStream, callStatus, isMuted, toggleMute, initiateCall, acceptCall, cleanupCall } = useWebRTC(currentUserId);
+  const { 
+    localStream, 
+    remoteStream, 
+    callStatus, 
+    callType, 
+    isMuted, 
+    isVideoMuted, 
+    toggleMute, 
+    toggleVideoMute, 
+    initiateCall, 
+    acceptCall, 
+    cleanupCall 
+  } = useWebRTC(currentUserId);
 
   const otherUserIdRef = useRef(null);
 
@@ -377,7 +389,7 @@ function ChatView() {
   }
 };
 
-  const handleInitiateCall = () => {
+  const handleInitiateCall = (type = "audio") => {
     if (!otherUserIdRef.current) return;
     setIsCalling(true);
     
@@ -390,12 +402,12 @@ function ChatView() {
       userToCall: otherUserIdRef.current,
       from: currentUserId,
       callerName: myName,
-      type: "audio",
+      type: type,
       chatId: id
     });
 
     // 2. Start WebRTC call state
-    initiateCall(otherUserIdRef.current);
+    initiateCall(otherUserIdRef.current, type);
   };
 
   const handleAcceptCall = () => {
@@ -403,7 +415,7 @@ function ChatView() {
     toast.success("Connecting securely...");
     
     // 🔥 Accept Call (emits accept_call, caller generates offer)
-    acceptCall(incomingCall.from);
+    acceptCall(incomingCall.from, incomingCall.type || "audio");
   };
 
   const handleEndCall = () => {
@@ -446,7 +458,8 @@ function ChatView() {
           onInfoClick={() => {
             isGroup ? setIsGroupInfoOpen(true) : setIsUserInfoOpen(true);
           }}
-          onCallClick={handleInitiateCall}
+          onCallClick={() => handleInitiateCall("audio")}
+          onVideoCallClick={() => handleInitiateCall("video")}
         />
       </div>
 
@@ -582,13 +595,18 @@ function ChatView() {
         chatName={chatName}
         chatImage={chatImage}
         callStatus={callStatus}
+        localStream={localStream}
         remoteStream={remoteStream}
+        callType={callType}
         isMuted={isMuted}             // 🛡️ Pass Mute State
+        isVideoMuted={isVideoMuted}
         onToggleMute={toggleMute}     // 🛡️ Pass Hardware Toggle
+        onToggleVideoMute={toggleVideoMute}
         onAccept={handleAcceptCall}
         onDecline={handleDeclineCall}
         onCancel={handleCancelCall}
         onEndCall={handleEndCall}
+        myAvatar={localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")).profilePic : null}
       />
     </div>
   );

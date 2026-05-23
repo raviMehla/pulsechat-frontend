@@ -41,6 +41,20 @@ const VolumeOff = ({ size = 20, className = "" }) => (
   </svg>
 );
 
+const VideoOn = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M23 7l-7 5 7 5V7z" />
+    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+  </svg>
+);
+
+const VideoOff = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10l-3.34-2.34" />
+    <line x1="1" y1="1" x2="23" y2="23" />
+  </svg>
+);
+
 /* ─────────────────────────────────────────────
    ANIMATED WAVEFORM
 ───────────────────────────────────────────── */
@@ -128,28 +142,52 @@ function CallOverlay({
   chatName,
   chatImage,
   callStatus,
+  localStream,
   remoteStream,
+  callType,
   isMuted,            // 🛡️ RECEIVED FROM CHATVIEW
+  isVideoMuted,       // 🛡️ RECEIVED FROM CHATVIEW
   onToggleMute,       // 🛡️ RECEIVED FROM CHATVIEW
+  onToggleVideoMute,  // 🛡️ RECEIVED FROM CHATVIEW
   onAccept,
   onDecline,
   onCancel,
   onEndCall,
+  myAvatar,
 }) {
   const audioRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  
   const [speakerOff, setSpeakerOff] = useState(false);
   const timer = useCallTimer(callStatus === "connected");
 
-  /* Attach remote stream */
-  useEffect(() => {
-    if (audioRef.current && remoteStream) {
-      audioRef.current.srcObject = remoteStream;
+  const setAudio = (el) => {
+    audioRef.current = el;
+    if (el && remoteStream) {
+      el.srcObject = remoteStream;
+      el.muted = speakerOff;
     }
-  }, [remoteStream]);
+  };
 
-  /* Speaker Off/On (Mutes the incoming HTML audio element on Web) */
+  const setLocalVideo = (el) => {
+    localVideoRef.current = el;
+    if (el && localStream) {
+      el.srcObject = localStream;
+    }
+  };
+
+  const setRemoteVideo = (el) => {
+    remoteVideoRef.current = el;
+    if (el && remoteStream) {
+      el.srcObject = remoteStream;
+    }
+  };
+
+  /* Speaker Off/On (Mutes the incoming HTML audio/video elements on Web) */
   useEffect(() => {
     if (audioRef.current) audioRef.current.muted = speakerOff;
+    if (remoteVideoRef.current) remoteVideoRef.current.muted = speakerOff;
   }, [speakerOff]);
 
   const isActive = isCalling || incomingCall || callStatus !== "idle";
@@ -167,12 +205,138 @@ function CallOverlay({
     : callStatus === "connecting"
     ? "Connecting…"
     : isIncoming
-    ? "Incoming call"
-    : "Calling…";
+    ? (incomingCall.type === "video" ? "Incoming Video Call…" : "Incoming Call…")
+    : (callType === "video" ? "Calling Video…" : "Calling…");
 
   /* ── Pulse ring colour ── */
   const ringColor = isIncoming ? "var(--status-success)" : "var(--accent-primary)";
 
+  // Render Connected Video Call Interface
+  if (callType === "video" && isConnected) {
+    return createPortal(
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[200] bg-black flex flex-col justify-between overflow-hidden"
+      >
+        {/* Remote Video Stream (Full Screen) */}
+        <video
+          ref={setRemoteVideo}
+          autoPlay
+          playsInline
+          muted={speakerOff}
+          className="absolute inset-0 w-full h-full object-cover z-0"
+        />
+
+        {/* Ambient glow container if remote video is black/waiting */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+          <div
+            className="w-96 h-96 rounded-full opacity-20 filter blur-3xl bg-accent-primary"
+            style={{ mixBlendMode: "screen" }}
+          />
+        </div>
+
+        {/* Local Video Stream (Floating PIP) */}
+        <div className="absolute top-6 right-6 w-32 h-44 md:w-40 md:h-56 rounded-2xl border border-white/20 shadow-2xl overflow-hidden z-20 bg-zinc-900 flex items-center justify-center">
+          <video
+            ref={setLocalVideo}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover transform scale-x-[-1]"
+          />
+          {isVideoMuted && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 gap-2 p-3 text-center">
+              <Avatar src={myAvatar} alt="Me" size="sm" />
+              <span className="text-[10px] text-textMuted font-medium">Camera Off</span>
+            </div>
+          )}
+        </div>
+
+        {/* Top Info overlay */}
+        <div className="relative z-10 w-full p-6 bg-gradient-to-b from-black/80 to-transparent flex flex-col gap-1 pointer-events-none">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] bg-success/20 text-success border border-success/30 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+              Video Call
+            </span>
+          </div>
+          <h2 className="text-white font-bold text-2xl tracking-tight drop-shadow-md mt-1">
+            {callerLabel}
+          </h2>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-sm font-semibold tabular-nums text-success drop-shadow-md tracking-[0.04em]">
+              {timer}
+            </span>
+          </div>
+        </div>
+
+        {/* Bottom Control Overlay */}
+        <div className="relative z-10 w-full p-8 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col items-center gap-6">
+          {/* Secondary Controls (Mute Mic, Camera Toggle, Speaker Toggle) */}
+          <div className="flex gap-6">
+            {[
+              {
+                label: isMuted ? "Unmute" : "Mute",
+                active: isMuted,
+                icon: <MicOff size={18} />,
+                onClick: onToggleMute,
+              },
+              {
+                label: isVideoMuted ? "Camera On" : "Camera Off",
+                active: isVideoMuted,
+                icon: isVideoMuted ? <VideoOff size={18} /> : <VideoOn size={18} />,
+                onClick: onToggleVideoMute,
+              },
+              {
+                label: speakerOff ? "Speaker Off" : "Speaker On",
+                active: speakerOff,
+                icon: <VolumeOff size={18} />,
+                onClick: () => setSpeakerOff((s) => !s),
+              },
+            ].map(({ label, active, icon, onClick }) => (
+              <motion.button
+                key={label}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onClick}
+                title={label}
+                className="flex flex-col items-center gap-1.5 focus:outline-none"
+              >
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center transition-colors duration-200"
+                  style={{
+                    background: active ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.1)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    color: "white",
+                  }}
+                >
+                  {icon}
+                </div>
+                <span className="text-[10px] text-zinc-300 font-medium tracking-[0.04em]">
+                  {label}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+
+          {/* End Call Button */}
+          <ActionBtn
+            onClick={onEndCall}
+            color="var(--status-danger)"
+            hoverColor="#d94f4f"
+            label="End Call"
+            large
+          >
+            <PhoneOff size={26} className="text-white" />
+          </ActionBtn>
+        </div>
+      </motion.div>,
+      document.body
+    );
+  }
+
+  // Render Ringing/Dialing/Voice Call Interface
   return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
@@ -198,7 +362,7 @@ function CallOverlay({
         }}
       />
 
-      <audio ref={audioRef} autoPlay className="hidden" />
+      <audio ref={setAudio} autoPlay className="hidden" />
 
       {/* ── Glass card ── */}
       <motion.div
@@ -281,8 +445,9 @@ function CallOverlay({
             <motion.span
               animate={{ opacity: [1, 0.45, 1] }}
               transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-              className={`text-[11px] font-medium tracking-[0.06em] uppercase ${isIncoming ? "text-success" : "text-textMuted"}`}
+              className={`text-[11px] font-medium tracking-[0.06em] uppercase flex items-center gap-1.5 ${isIncoming ? "text-success" : "text-textMuted"}`}
             >
+              {(callType === "video" || incomingCall?.type === "video") && <span>📹</span>}
               {statusText}
             </motion.span>
           )}
