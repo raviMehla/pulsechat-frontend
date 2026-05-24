@@ -18,7 +18,7 @@ export const sendMessage = async ({ chatId, content, replyTo }) => {
     content,
     replyTo // 🔥 NEW: Pass reply ID
   });
-  return res.data;
+  return res.data?.data || res.data;
 };
 
 // Send media (image/video/file)
@@ -34,7 +34,7 @@ export const sendMedia = async (chatId, file, replyTo, signal = null) => {
     },
     signal,
   });
-  return data;
+  return data?.data || data;
 };
 
 // MARK messages as read
