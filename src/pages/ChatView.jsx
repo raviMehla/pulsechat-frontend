@@ -615,7 +615,7 @@ function ChatView() {
               scrollerRef={(element) => {
                 scrollContainerRef.current = element;
               }}
-              className="w-full h-full p-4 overflow-y-auto overflow-x-hidden custom-scrollbar flex flex-col"
+              className="w-full h-full overflow-y-auto overflow-x-hidden custom-scrollbar"
               itemContent={(index, msg) => {
                 const firstIndex = 10000 - messages.length;
                 const relativeIndex = index - firstIndex;
@@ -634,28 +634,33 @@ function ChatView() {
                 const isLastInGroup = !nextMsg || senderId !== nextSenderId || timeDiffNext > TWO_MINUTES;
 
                 return (
-                  <MessageBubble 
-                    key={msg._id} 
-                    msg={msg} 
-                    currentUserId={currentUserId}
-                    isGroup={isGroup}
-                    isFirstInGroup={isFirstInGroup}
-                    isLastInGroup={isLastInGroup}
-                    onReply={() => setReplyingTo(msg)}
-                    onReact={handleReaction}
-                    onDelete={handleDelete}
-                    onRetry={handleRetry}
-                  />
+                  <div className="px-4">
+                    <MessageBubble 
+                      key={msg._id} 
+                      msg={msg} 
+                      currentUserId={currentUserId}
+                      isGroup={isGroup}
+                      isFirstInGroup={isFirstInGroup}
+                      isLastInGroup={isLastInGroup}
+                      onReply={() => setReplyingTo(msg)}
+                      onReact={handleReaction}
+                      onDelete={handleDelete}
+                      onRetry={handleRetry}
+                    />
+                  </div>
                 );
               }}
               components={{
                 Header: () => (
-                  nextCursor ? (
-                    <div className="w-full h-10 flex items-center justify-center my-2">
-                      {isFetchingMore && <span className="text-xs font-medium text-accent animate-pulse">Loading history...</span>}
-                    </div>
-                  ) : null
-                )
+                  <div className="pt-4">
+                    {nextCursor ? (
+                      <div className="w-full h-10 flex items-center justify-center my-2">
+                        {isFetchingMore && <span className="text-xs font-medium text-accent animate-pulse">Loading history...</span>}
+                      </div>
+                    ) : null}
+                  </div>
+                ),
+                Footer: () => <div className="pb-4" />
               }}
             />
           </>
