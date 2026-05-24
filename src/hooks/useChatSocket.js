@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { getSocket } from "../services/socket";
 import { markChatAsRead } from "../services/message.api";
 import { getUserStatus } from "../services/user.api";
+import toast from "react-hot-toast";
 
 export const useChatSocket = ({
   chatId,
@@ -142,6 +143,12 @@ export const useChatSocket = ({
       }
     };
 
+    const onAdminRevoked = ({ chatId: eventChatId }) => {
+      if (String(eventChatId) === String(chatId)) {
+        toast.error("Your admin privileges for this group have been revoked.");
+      }
+    };
+
     // Register Listeners
     socket.on("message_received",  onMessageReceived);
     socket.on("typing",            onTyping);
@@ -156,6 +163,8 @@ export const useChatSocket = ({
     socket.on("group_updated",     onGroupUpdated); 
     socket.on("kicked_from_group", onKickedFromGroup); 
     socket.on("group_deleted",     onGroupDeleted); 
+    socket.on("chat_terminated",   onGroupDeleted);
+    socket.on("admin_revoked",     onAdminRevoked);
 
     // Cleanup
     return () => {
@@ -180,6 +189,8 @@ export const useChatSocket = ({
       socket.off("group_updated",    onGroupUpdated); 
       socket.off("kicked_from_group", onKickedFromGroup); 
       socket.off("group_deleted",     onGroupDeleted); 
+      socket.off("chat_terminated",  onGroupDeleted);
+      socket.off("admin_revoked",    onAdminRevoked);
     };
   }, [
     chatId, currentUserId, navigate, setMessages, setIsTyping, 

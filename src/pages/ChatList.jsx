@@ -125,12 +125,14 @@ function ChatList() {
     socket.on("group_updated", handleGroupUpdated);
     socket.on("group_deleted", handleGroupDeletedOrKicked);
     socket.on("kicked_from_group", handleGroupDeletedOrKicked);
+    socket.on("chat_terminated", handleGroupDeletedOrKicked);
 
     return () => {
       socket.off("message_received", handleNewMessage);
       socket.off("group_updated", handleGroupUpdated);
       socket.off("group_deleted", handleGroupDeletedOrKicked);
       socket.off("kicked_from_group", handleGroupDeletedOrKicked);
+      socket.off("chat_terminated", handleGroupDeletedOrKicked);
     };
   }, [location.pathname]);
 
