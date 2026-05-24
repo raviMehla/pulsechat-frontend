@@ -119,7 +119,7 @@ function MessageBubble({
 
       <div className={`flex flex-col relative max-w-[75%] sm:max-w-[60%] ${isOwnMessage ? "items-end" : "items-start"}`}>
         
-        <div className={`absolute bottom-0 opacity-0 group-hover:opacity-100 flex items-center transition-opacity ${isOwnMessage ? "right-full pr-1" : "left-full pl-1"}`}>
+        <div className={`absolute bottom-0 hidden group-hover:flex items-center ${isOwnMessage ? "right-full pr-1" : "left-full pl-1"}`}>
           {!isOwnMessage ? (
             <>
               <button onClick={() => setShowPicker(!showPicker)} className="w-11 h-11 flex items-center justify-center text-textMuted hover:text-accent" title="React">🙂</button>

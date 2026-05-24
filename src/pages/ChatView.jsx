@@ -615,7 +615,7 @@ function ChatView() {
               scrollerRef={(element) => {
                 scrollContainerRef.current = element;
               }}
-              className="w-full h-full p-4 overflow-y-auto custom-scrollbar flex flex-col"
+              className="w-full h-full p-4 overflow-y-auto overflow-x-hidden custom-scrollbar flex flex-col"
               itemContent={(index, msg) => {
                 const firstIndex = 10000 - messages.length;
                 const relativeIndex = index - firstIndex;
