@@ -24,15 +24,20 @@ export const CallProvider = ({ children }) => {
 
     const handleIncomingCall = (data) => setIncomingCall(data);
 
-    const handleCallRejected = () => {
+    const handleCallRejected = (data) => {
       setIsCalling(false);
       webrtc.cleanupCall();
-      toast.error("Call declined");
+      if (data?.reason === "offline") {
+        toast.error("User is offline");
+      } else {
+        toast.error("Call declined");
+      }
       callTargetUserIdRef.current = null;
     };
 
     const handleCallCancelled = () => {
       setIncomingCall(null);
+      setIsCalling(false);
       webrtc.cleanupCall();
       toast("Call ended", { icon: "📵" });
       callTargetUserIdRef.current = null;

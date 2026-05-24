@@ -551,6 +551,10 @@ function ChatView() {
 
   const handleInitiateCall = (type = "audio") => {
     if (!otherUserIdRef.current) return;
+    if (!isOnline) {
+      toast.error(`${chatName} is offline`);
+      return;
+    }
     startCall(otherUserIdRef.current, type, chatName, chatImage, id);
   };
  

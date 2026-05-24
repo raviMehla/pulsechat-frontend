@@ -671,7 +671,7 @@ function CallOverlay({
 
         {/* ── Primary call actions ── */}
         <div className="flex gap-6 items-end">
-          {isConnected ? (
+          {isConnected || callStatus === "connecting" ? (
             <ActionBtn
               onClick={onEndCall}
               color="var(--status-danger)"
