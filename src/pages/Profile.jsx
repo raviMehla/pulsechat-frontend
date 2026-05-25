@@ -2,6 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { disconnectSocket } from "../services/socket";
+import { useConfirm } from "../hooks/useConfirm";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+
 
 // 🛡️ ARCHITECTURAL FIX: Importing all modular API functions
 import { 
@@ -20,8 +23,10 @@ import { Avatar } from "../components/ui/Avatar";
 
 function Profile() {
   const navigate = useNavigate();
+  const { confirmState, confirm, close: closeConfirm } = useConfirm();
   
   // 1. Synchronous State Hydration
+
   const userString = localStorage.getItem("user");
   const initialUser = userString ? JSON.parse(userString) : {};
 
@@ -121,18 +126,26 @@ function Profile() {
     }
   };
 
-  const handleLogoutAll = async () => {
-    if (!window.confirm("Are you sure you want to log out of every active session, including this browser?")) return;
-    try {
-      // 🛡️ API Execution via abstraction
-      await logoutAllDevices();
-      toast.success("All sessions logged out.");
-      executeLogout();
-    } catch (error) {
-      console.error("Global Logout Error:", error); 
-      toast.error("Action failed");
-    }
+  const handleLogoutAll = () => {
+    confirm({
+      title: "Log Out Everywhere",
+      message: "Are you sure you want to log out of every active session, including this browser?",
+      confirmText: "Log Out All",
+      cancelText: "Cancel",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await logoutAllDevices();
+          toast.success("All sessions logged out.");
+          executeLogout();
+        } catch (error) {
+          console.error("Global Logout Error:", error); 
+          toast.error("Action failed");
+        }
+      }
+    });
   };
+
 
   const handleUnblock = async (targetId) => {
     try {
@@ -370,6 +383,8 @@ function Profile() {
         </div>
       </div>
 
+      <ConfirmDialog {...confirmState} onClose={closeConfirm} />
+
       <footer className="w-full text-center py-6 border-t border-borderSubtle mt-auto bg-surface">
         <p className="text-[10px] text-textMuted tracking-[0.2em] uppercase font-bold">
           Designed & Developed by Mehla Inc.
@@ -377,6 +392,7 @@ function Profile() {
       </footer>
     </div>
   );
+
 }
 
 export default Profile;

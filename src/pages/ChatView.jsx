@@ -22,7 +22,11 @@ import { useCall } from "../context/CallContext";
 
 import toast from "react-hot-toast";
 
+import { useConfirm } from "../hooks/useConfirm";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+
 import ChatHeader from "../components/chat/ChatHeader";
+
 import MessageBubble from "../components/chat/MessageBubble";
 import MessageInput from "../components/chat/MessageInput";
 import MessageSearch from "../components/chat/MessageSearch";
@@ -113,6 +117,9 @@ function ChatView() {
   const { startCall } = useCall();
 
   const otherUserIdRef = useRef(null);
+
+  const { confirmState, confirm, close: closeConfirm } = useConfirm();
+
 
   // 🛡️ Synchronize currently active chat ID with global context
   useEffect(() => {
@@ -480,9 +487,24 @@ function ChatView() {
     await reactToMessage(messageId, emoji); 
   };
   
-  const handleDelete = async (messageId) => { 
-    await deleteMessage(messageId); 
+  const handleDelete = (messageId) => { 
+    confirm({
+      title: "Delete Message",
+      message: "Are you sure you want to delete this message for everyone?",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteMessage(messageId); 
+          toast.success("Message deleted");
+        } catch (error) {
+          toast.error("Failed to delete message");
+        }
+      }
+    });
   };
+
 
   const handleJumpToMessage = async (targetMessage) => {
     const element = document.getElementById(`msg-${targetMessage._id}`);
@@ -535,19 +557,27 @@ function ChatView() {
     }
   };
 
-  const handleDeleteChat = async () => {
-  if (window.confirm("Are you sure you want to permanently delete this entire chat from your device?")) {
-    try {
-      await api.delete(`/chat/${id}`);
-      toast.success("Chat deleted successfully.");
-      setIsUserInfoOpen(false);
-      navigate("/"); // Kick them out to the chat list
-    } catch (error) {
-      toast.error("Failed to delete chat.");
-      console.error(error);
-    }
-  }
-};
+  const handleDeleteChat = () => {
+    confirm({
+      title: "Delete Chat",
+      message: "Are you sure you want to permanently delete this entire chat from your device?",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/chat/${id}`);
+          toast.success("Chat deleted successfully.");
+          setIsUserInfoOpen(false);
+          navigate("/"); // Kick them out to the chat list
+        } catch (error) {
+          toast.error("Failed to delete chat.");
+          console.error(error);
+        }
+      }
+    });
+  };
+
 
   const handleInitiateCall = (type = "audio") => {
     if (!otherUserIdRef.current) return;
@@ -745,7 +775,10 @@ function ChatView() {
         onToggleBlock={handleToggleBlock}
         onDeleteChat={handleDeleteChat}
       />
+
+      <ConfirmDialog {...confirmState} onClose={closeConfirm} />
     </div>
   );
+
 }
 export default ChatView;

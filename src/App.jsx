@@ -7,6 +7,8 @@ import localforage from "localforage";
 // Layouts & Security
 import AppLayout from "./components/common/AppLayout";
 import ProtectedRoute from "./components/common/ProtectedRoute";
+import PublicRoute from "./components/common/PublicRoute";
+import NetworkStatus from "./components/common/NetworkStatus";
 
 // 🛡️ Lazy Loading Retry Wrapper to handle Chunk Load Errors on new deployments
 const lazyWithRetry = (componentImport) => {
@@ -86,7 +88,7 @@ function App() {
         </div>
       ), { 
         duration: Infinity,
-        position: "bottom-left",
+        position: "top-right",
       });
     }
   }, [needRefresh, updateServiceWorker, setNeedRefresh]);
@@ -191,6 +193,7 @@ function App() {
 
   return (
     <>
+    <NetworkStatus />
     <Toaster position="top-right" reverseOrder={false} />
     <Suspense fallback={
       <div className="h-[100dvh] w-full flex flex-col items-center justify-center bg-background text-accent gap-4 font-semibold">
@@ -200,10 +203,11 @@ function App() {
     }>
       <Routes>
       {/* 🛡️ Public Routes */}
-      <Route path="/landing" element={<Landing />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
+      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+      <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+      <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
+
 
       {/* Authenticated Application Boundary */}
       <Route

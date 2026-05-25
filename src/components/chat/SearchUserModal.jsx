@@ -2,12 +2,19 @@ import { useState } from "react";
 import { searchUsers } from "../../services/user.api";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import toast from "react-hot-toast";
+import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 
 function SearchUserModal({ isOpen, onClose, onChatCreated }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const navigate = useNavigate();
+
+  // Escape key light-dismiss
+  useKeyboardShortcuts([
+    { key: "Escape", callback: onClose }
+  ]);
 
   if (!isOpen) return null;
 
@@ -45,9 +52,10 @@ function SearchUserModal({ isOpen, onClose, onChatCreated }) {
       onClose();
     } catch (error) {
       console.error("Failed to start chat:", error);
-      alert(error.response?.data?.message || "Could not start chat");
+      toast.error(error.response?.data?.message || "Could not start chat");
     }
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">

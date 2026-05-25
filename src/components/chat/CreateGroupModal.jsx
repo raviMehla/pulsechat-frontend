@@ -2,6 +2,9 @@ import { useState } from "react";
 import { createPortal } from "react-dom"; // 🛡️ ARCHITECTURAL UPGRADE
 import { createGroupChat } from "../../services/chat.api";
 import { searchUsers } from "../../services/user.api";
+import toast from "react-hot-toast";
+import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
+
 
 function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
   const [groupName, setGroupName] = useState("");
@@ -14,7 +17,13 @@ function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [description, setDescription] = useState("");
 
+  // Escape key light-dismiss
+  useKeyboardShortcuts([
+    { key: "Escape", callback: onClose }
+  ]);
+
   if (!isOpen) return null;
+
 
   // =====================================
   // HANDLERS
@@ -23,7 +32,7 @@ function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image is too large. Max size is 5MB.");
+      toast.error("Image is too large. Max size is 5MB.");
       return;
     }
     setGroupAvatar(file);
@@ -60,7 +69,7 @@ function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
 
   const handleSubmit = async () => {
     if (!groupName.trim() || selectedUsers.length < 1) {
-      alert("Please provide a group name and select at least 1 user.");
+      toast.error("Please provide a group name and select at least 1 user.");
       return;
     }
     try {
@@ -76,13 +85,15 @@ function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
       setAvatarPreview(null);
       setDescription("");
       onClose();
+      toast.success("Group created successfully");
     } catch (error) {
       console.error("Failed to create group:", error);
-      alert(error.response?.data?.message || "An error occurred");
+      toast.error(error.response?.data?.message || "An error occurred");
     } finally {
       setIsLoading(false);
     }
   };
+
 
   // =====================================
   // RENDER (Wrapped in a React Portal)

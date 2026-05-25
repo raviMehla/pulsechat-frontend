@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import ChatItem from "../components/chat/ChatItem"; 
 import ChatListHeader from "../components/chat/ChatListHeader";
@@ -6,7 +6,9 @@ import CreateGroupModal from "../components/chat/CreateGroupModal";
 import SearchUserModal from "../components/chat/SearchUserModal"; 
 import { getChats } from "../services/chat.api";
 import { getSocket } from "../services/socket"; 
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import localforage from "localforage"; 
+
 
 function ChatList() {
   const [chats, setChats] = useState([]);
@@ -16,6 +18,43 @@ function ChatList() {
   
   const currentUserId = localStorage.getItem("userId");
   const location = useLocation();
+  
+  const activeChatRef = useRef(null);
+
+  // Auto-scroll to active chat
+  useEffect(() => {
+    if (activeChatRef.current) {
+      activeChatRef.current.scrollIntoView({ 
+        behavior: "smooth", 
+        block: "nearest" 
+      });
+    }
+  }, [location.pathname]);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    {
+      key: "k",
+      ctrl: true,
+      callback: () => setIsSearchModalOpen(true)
+    },
+    {
+      key: "k",
+      meta: true,
+      callback: () => setIsSearchModalOpen(true)
+    },
+    {
+      key: "g",
+      ctrl: true,
+      callback: () => setIsGroupModalOpen(true)
+    },
+    {
+      key: "g",
+      meta: true,
+      callback: () => setIsGroupModalOpen(true)
+    }
+  ]);
+
 
   useEffect(() => {
     const fetchChats = async () => {
@@ -212,24 +251,30 @@ function ChatList() {
             const otherUser = chat.isGroup ? null : chat.users.find(u => String(u._id) !== String(currentUserId));
             const chatName = chat.isGroup ? chat.chatName : (otherUser?.name || otherUser?.username || "User");
             const chatImage = chat.isGroup ? chat.groupAvatar : otherUser?.profilePic; 
+            const isActive = location.pathname.includes(chat._id);
 
             return (
-              <ChatItem
+              <div
                 key={chat._id}
-                chat={{
-                  id: chat._id,
-                  isGroup: chat.isGroup,
-                  name: chatName,
-                  image: chatImage,
-                  lastMessage: getLastMessagePreview(chat.lastMessage),
-                  time: chat.lastMessage?.createdAt 
-                    ? new Date(chat.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
-                    : "",
-                  unread: chat.unreadCount || 0 
-                }}
-              />
+                ref={isActive ? activeChatRef : null}
+              >
+                <ChatItem
+                  chat={{
+                    id: chat._id,
+                    isGroup: chat.isGroup,
+                    name: chatName,
+                    image: chatImage,
+                    lastMessage: getLastMessagePreview(chat.lastMessage),
+                    time: chat.lastMessage?.createdAt 
+                      ? new Date(chat.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+                      : "",
+                    unread: chat.unreadCount || 0 
+                  }}
+                />
+              </div>
             );
           })
+
         )}
       </div>
 

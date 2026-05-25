@@ -1,4 +1,5 @@
 import { Outlet, useLocation } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import ChatList from "../../pages/ChatList";
 import Sidebar from "./Sidebar"; 
 import { usePushNotifications } from "../../hooks/usePushNotifications";
@@ -29,7 +30,18 @@ function AppLayout() {
       <main className={`flex-1 flex-col min-w-0 h-full relative bg-background ${
         !isRouteActive ? "hidden md:flex" : "flex"
       }`}>
-        <Outlet />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, x: 15 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -15 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="h-full w-full relative"
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </main>
 
     </div>

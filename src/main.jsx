@@ -6,6 +6,7 @@ import "./index.css";
 import { BrowserRouter } from "react-router-dom";
 import { ChatProvider } from "./context/ChatContext";
 import { CallProvider } from "./context/CallContext";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 import localforage from "localforage";
 
 localforage.config({
@@ -14,11 +15,15 @@ localforage.config({
 });
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <BrowserRouter>
-    <ChatProvider>
-      <CallProvider>
-        <App />
-      </CallProvider>
-    </ChatProvider>
-  </BrowserRouter>
+  <React.StrictMode>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ChatProvider>
+          <CallProvider>
+            <App />
+          </CallProvider>
+        </ChatProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
+  </React.StrictMode>
 );

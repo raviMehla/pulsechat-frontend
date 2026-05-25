@@ -26,10 +26,9 @@ function MessageBubble({
   };
 
   const handleDeleteClick = () => {
-    if (window.confirm("Delete this message for everyone?")) {
-      onDelete(msg._id);
-    }
+    onDelete(msg._id);
   };
+
 
   const handleDownload = async (e, url, filename) => {
     e.preventDefault();

@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { disconnectSocket } from "../services/socket"; 
 import api from "../services/api"; // 🛡️ ARCHITECTURAL UPGRADE: Imported for Session Management
+import { useConfirm } from "../hooks/useConfirm";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+
 
 // 🛡️ API Abstractions
 import { requestDataBackup, requestDeletionOtp, deleteAccount } from "../services/user.api";
@@ -13,6 +16,8 @@ import { Input } from "../components/ui/Input";
 
 function Settings() {
   const navigate = useNavigate();
+  const { confirmState, confirm, close: closeConfirm } = useConfirm();
+
 
   // Loading States
   const [isExporting, setIsExporting] = useState(false);
@@ -61,48 +66,59 @@ function Settings() {
   };
 
   // 🛡️ ARCHITECTURAL UPGRADE: Session Revocation Logic
-  const handleLogoutAll = async () => {
-    if (!window.confirm("Security Alert: This will immediately log you out of ALL devices, including this one. You will need to log back in. Proceed?")) return;
+  const handleLogoutAll = () => {
+    confirm({
+      title: "Log Out All Devices",
+      message: "Security Alert: This will immediately log you out of ALL devices, including this one. You will need to log back in. Proceed?",
+      confirmText: "Log Out All",
+      cancelText: "Cancel",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setIsRevoking(true);
+          toast.loading("Revoking global sessions...", { id: "session-toast" });
 
-    try {
-      setIsRevoking(true);
-      toast.loading("Revoking global sessions...", { id: "session-toast" });
+          await api.post("/users/logout-all"); 
 
-      // Ping the backend to increment tokenVersion
-      // Update this route string if your backend router uses a different path!
-      await api.post("/users/logout-all"); 
-
-      toast.success("All sessions secured. Please log in again.", { id: "session-toast" });
-      
-      // Execute local cleanup
-      disconnectSocket(); 
-      localStorage.clear();    
-      sessionStorage.clear();   
-      navigate("/login"); 
-
-    } catch (error) {
-      console.error("Session Revocation Error:", error);
-      toast.error(error.response?.data?.message || "Failed to revoke sessions.", { id: "session-toast" });
-      setIsRevoking(false);
-    }
+          toast.success("All sessions secured. Please log in again.", { id: "session-toast" });
+          
+          disconnectSocket(); 
+          localStorage.clear();    
+          sessionStorage.clear();   
+          navigate("/login"); 
+        } catch (error) {
+          console.error("Session Revocation Error:", error);
+          toast.error(error.response?.data?.message || "Failed to revoke sessions.", { id: "session-toast" });
+          setIsRevoking(false);
+        }
+      }
+    });
   };
 
-  const handleInitiateDeletion = async () => {
-    if (!window.confirm("CRITICAL WARNING: This action will permanently delete your account. Proceed to verification?")) return;
-
-    try {
-      setIsRequestingOtp(true);
-      await requestDeletionOtp();
-      setDeletionPhase(2); 
-      toast.success("Verification code sent to your email.", { duration: 5000 });
-    } catch (error) {
-      console.error("OTP Request Error:", error);
-      const errorMessage = error.response?.data?.message || error.message || "Failed to initiate deletion sequence. Network timeout.";
-      toast.error(errorMessage);
-    } finally {
-      setIsRequestingOtp(false);
-    }
+  const handleInitiateDeletion = () => {
+    confirm({
+      title: "Delete Account",
+      message: "CRITICAL WARNING: This action will permanently delete your account. Proceed to verification?",
+      confirmText: "Delete Account",
+      cancelText: "Cancel",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setIsRequestingOtp(true);
+          await requestDeletionOtp();
+          setDeletionPhase(2); 
+          toast.success("Verification code sent to your email.", { duration: 5000 });
+        } catch (error) {
+          console.error("OTP Request Error:", error);
+          const errorMessage = error.response?.data?.message || error.message || "Failed to initiate deletion sequence. Network timeout.";
+          toast.error(errorMessage);
+        } finally {
+          setIsRequestingOtp(false);
+        }
+      }
+    });
   };
+
 
   const handleConfirmDeletion = async (e) => {
     e.preventDefault(); 
@@ -292,6 +308,7 @@ function Settings() {
         </div>
 
       </div>
+      <ConfirmDialog {...confirmState} onClose={closeConfirm} />
     </div>
   );
 }

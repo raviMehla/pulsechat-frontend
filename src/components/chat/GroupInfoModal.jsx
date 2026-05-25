@@ -1,14 +1,21 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import { searchUsers } from "../../services/user.api";
 import FocusLock from "react-focus-lock";
 import { 
-  updateGroupDetails, // 🛡️ Ensure you create this API wrapper!
+  updateGroupDetails, 
   addUserToGroup, 
   removeUserFromGroup, 
-  leaveGroupChat 
+  leaveGroupChat,
+  deleteChat
 } from "../../services/chat.api";
-import { Avatar } from "../ui/Avatar"; // 🛡️ Utilizing our standard primitive
+import { Avatar } from "../ui/Avatar"; 
+import { useConfirm } from "../../hooks/useConfirm";
+import ConfirmDialog from "../ui/ConfirmDialog";
+import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
+
 
 function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
   const [groupName, setGroupName] = useState("");
@@ -18,6 +25,15 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
   const [isLoading, setIsLoading] = useState(false);
   const [groupAvatarFile, setGroupAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+
+  const navigate = useNavigate();
+  const { confirmState, confirm, close: closeConfirm } = useConfirm();
+
+  // Escape key light-dismiss
+  useKeyboardShortcuts([
+    { key: "Escape", callback: onClose }
+  ]);
+
 
   // Sync local state when the chat prop updates via sockets
   useEffect(() => {
@@ -50,7 +66,7 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert("Image is too large. Max size is 5MB.");
+      toast.error("Image is too large. Max size is 5MB.");
       return;
     }
     if (avatarPreview) {
@@ -64,11 +80,11 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
     if (!groupName.trim()) return;
     try {
       setIsLoading(true);
-      // 🛡️ Passing both name, description and group avatar file to the backend
       await updateGroupDetails(chat._id, { chatName: groupName, description: groupDesc }, groupAvatarFile);
       setGroupAvatarFile(null);
+      toast.success("Group details updated");
     } catch (error) {
-      alert(error.response?.data?.message || "Failed to update group details");
+      toast.error(error.response?.data?.message || "Failed to update group details");
     } finally {
       setIsLoading(false);
     }
@@ -90,7 +106,7 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
 
   const handleAddUser = async (user) => {
     if (chat.users.some(u => String(u._id) === String(user._id))) {
-      alert("User is already in the group!");
+      toast.error("User is already in the group!");
       return;
     }
     try {
@@ -98,39 +114,80 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
       await addUserToGroup(chat._id, user._id);
       setSearchQuery("");
       setSearchResults([]);
+      toast.success(`${user.name} added successfully`);
     } catch (error) {
-      alert(error.response?.data?.message || "Failed to add user");
+      toast.error(error.response?.data?.message || "Failed to add user");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRemoveUser = async (user) => {
-    if (window.confirm(`Are you sure you want to remove ${user.name}?`)) {
-      try {
-        setIsLoading(true);
-        await removeUserFromGroup(chat._id, user._id);
-      } catch (error) {
-        alert(error.response?.data?.message || "Failed to remove user");
-      } finally {
-        setIsLoading(false);
+  const handleRemoveUser = (user) => {
+    confirm({
+      title: "Remove Member",
+      message: `Are you sure you want to remove ${user.name}?`,
+      confirmText: "Remove",
+      cancelText: "Cancel",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setIsLoading(true);
+          await removeUserFromGroup(chat._id, user._id);
+          toast.success(`${user.name} removed successfully`);
+        } catch (error) {
+          toast.error(error.response?.data?.message || "Failed to remove user");
+        } finally {
+          setIsLoading(false);
+        }
       }
-    }
+    });
   };
 
-  const handleLeaveGroup = async () => {
-    if (window.confirm("Are you sure you want to leave this group?")) {
-      try {
-        setIsLoading(true);
-        await leaveGroupChat(chat._id);
-        onClose();
-      } catch (error) {
-        alert(error.response?.data?.message || "Failed to leave group");
-      } finally {
-        setIsLoading(false);
+  const handleLeaveGroup = () => {
+    confirm({
+      title: "Leave Group",
+      message: "Are you sure you want to leave this group?",
+      confirmText: "Leave",
+      cancelText: "Cancel",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setIsLoading(true);
+          await leaveGroupChat(chat._id);
+          onClose();
+          navigate("/");
+        } catch (error) {
+          toast.error(error.response?.data?.message || "Failed to leave group");
+        } finally {
+          setIsLoading(false);
+        }
       }
-    }
+    });
   };
+
+  const handleDeleteGroup = () => {
+    confirm({
+      title: "Delete Group",
+      message: "⚠️ CRITICAL WARNING: This will permanently delete this group and all its message history for ALL members. This action cannot be undone. Proceed?",
+      confirmText: "Delete Group",
+      cancelText: "Cancel",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setIsLoading(true);
+          await deleteChat(chat._id);
+          toast.success("Group deleted successfully");
+          onClose();
+          navigate("/");
+        } catch (error) {
+          toast.error(error.response?.data?.message || "Failed to delete group");
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    });
+  };
+
 
   // =====================================
   // RENDER
@@ -289,19 +346,44 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
         </div>
 
         {/* FOOTER ACTIONS */}
-        <div className="mt-4 pt-4 border-t border-borderSubtle flex justify-end">
-          <button 
-            onClick={handleLeaveGroup}
-            disabled={isLoading}
-            className="px-4 py-2 bg-danger/10 text-danger border border-danger/30 rounded-md text-sm font-medium hover:bg-danger hover:text-white transition-colors"
-          >
-            Leave Group
-          </button>
+        <div className="mt-4 pt-4 border-t border-borderSubtle flex flex-col sm:flex-row gap-3 justify-end items-center">
+          {isAdmin && (
+            <button 
+              onClick={handleDeleteGroup}
+              disabled={isLoading}
+              className="w-full sm:w-auto px-4 py-2 bg-red-600/10 text-red-600 border border-red-600/30 rounded-md text-sm font-medium hover:bg-red-600 hover:text-white transition-colors"
+            >
+              Delete Group
+            </button>
+          )}
+          {isAdmin && chat.users?.length === 1 ? (
+            <div className="relative group w-full sm:w-auto">
+              <button 
+                disabled
+                className="w-full sm:w-auto px-4 py-2 bg-danger/10 text-danger/50 border border-danger/20 rounded-md text-sm font-medium cursor-not-allowed"
+              >
+                Leave Group
+              </button>
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-2 bg-black/90 text-white text-[11px] rounded-md whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[100] shadow-lg">
+                You're the only member. Delete the group instead.
+              </div>
+            </div>
+          ) : (
+            <button 
+              onClick={handleLeaveGroup}
+              disabled={isLoading}
+              className="w-full sm:w-auto px-4 py-2 bg-danger/10 text-danger border border-danger/30 rounded-md text-sm font-medium hover:bg-danger hover:text-white transition-colors"
+            >
+              Leave Group
+            </button>
+          )}
         </div>
 
       </div>
+      <ConfirmDialog {...confirmState} onClose={closeConfirm} />
     </div>
     </FocusLock>
+
   );
 }
 

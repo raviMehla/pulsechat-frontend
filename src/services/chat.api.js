@@ -121,3 +121,13 @@ export const leaveGroupChat = async (chatId) => {
     throw error;
   }
 };
+
+export const deleteChat = async (chatId) => {
+  try {
+    const res = await api.delete(`/chat/${chatId}`);
+    return res.data;
+  } catch (error) {
+    console.error("Failed to delete chat API:", error);
+    throw error;
+  }
+};
