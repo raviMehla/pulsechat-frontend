@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getSocket } from "../services/socket";
+import api from "../services/api";
 import toast from "react-hot-toast";
 
 export const useWebRTC = (_currentUserId) => {
@@ -18,11 +19,21 @@ export const useWebRTC = (_currentUserId) => {
   const iceCandidateQueue = useRef([]);
   const iceDropTimeoutRef = useRef(null);
 
-  const rtcConfig = {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" }
-    ]
+  // Fetches fresh TURN + STUN ICE credentials from the backend.
+  // This keeps the Metered API key secret (server-side only).
+  // Falls back to Google STUN if the backend call fails, so calls
+  // still work on open/simple networks even if Metered is unreachable.
+  const fetchIceServers = async () => {
+    try {
+      const { data } = await api.get("/call/ice-servers");
+      return data.iceServers;
+    } catch (err) {
+      console.warn("[WebRTC] Failed to fetch TURN credentials, falling back to STUN only:", err.message);
+      return [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:stun1.l.google.com:19302" }
+      ];
+    }
   };
 
   // 🛡️ ARCHITECTURAL UPGRADE: Anti-Refresh Safety Net
@@ -78,7 +89,8 @@ export const useWebRTC = (_currentUserId) => {
       }
     }
 
-    const pc = new RTCPeerConnection(rtcConfig);
+    const iceServers = await fetchIceServers();
+    const pc = new RTCPeerConnection({ iceServers });
     peerConnection.current = pc;
 
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
