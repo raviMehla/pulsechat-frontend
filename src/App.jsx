@@ -63,7 +63,7 @@ function App() {
     if (needRefresh) {
       toast((t) => (
         <div className="flex flex-col gap-2 p-1 text-sm font-medium">
-          <p className="text-textPrimary font-semibold">New version available!</p>
+          <p className="text-toastTitle font-semibold">New version available!</p>
           <p className="text-xs text-textMuted">Reload the app to apply the latest security updates.</p>
           <div className="flex gap-2 justify-end mt-1">
             <button

@@ -16,6 +16,7 @@ export default {
         card: 'var(--bg-card)',
         textPrimary: 'var(--text-primary)',
         textMuted: 'var(--text-muted)',
+        toastTitle: '#9b93e1',   /* Fixed lavender — toast headings, always visible on light/dark toast bg */
         accent: 'var(--accent-primary)',
         accentHover: 'var(--accent-hover)',
         success: 'var(--status-success)',
