@@ -103,6 +103,7 @@ function ChatView() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isViewingHistory, setIsViewingHistory] = useState(false);
   const [isBlockedByMe, setIsBlockedByMe] = useState(false);
+  const [isOtherUserDeleted, setIsOtherUserDeleted] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [nextCursor, setNextCursor] = useState(null);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
@@ -197,6 +198,8 @@ function ChatView() {
         if (!currentChat) return;
 
         setIsGroup(currentChat.isGroup || false);
+        setIsOtherUserDeleted(false);
+        setIsBlockedByMe(false);
 
         if (currentChat.isGroup) {
           setChatName(currentChat.chatName || "Group");
@@ -206,8 +209,16 @@ function ChatView() {
           return;
         }
 
-        const other = currentChat.users.find((u) => u._id !== currentUserId);
-        if (!other) return;
+        const other = currentChat.users.find((u) => u && String(u._id) !== String(currentUserId));
+        
+        if (currentChat.otherUserDeleted || !other) {
+          setIsOtherUserDeleted(true);
+          setChatName("Deleted Account");
+          setChatImage(null);
+          setActiveChatData(currentChat);
+          otherUserIdRef.current = null;
+          return;
+        }
 
         setChatName(other.name || other.username || "User");
         otherUserIdRef.current = other._id;
@@ -610,6 +621,7 @@ function ChatView() {
           }}
           onCallClick={() => handleInitiateCall("audio")}
           onVideoCallClick={() => handleInitiateCall("video")}
+          isOtherUserDeleted={isOtherUserDeleted}
         />
       </div>
 
@@ -703,7 +715,11 @@ function ChatView() {
         
       {/* 4. FIXED INPUT AREA: Locked tightly to the bottom */}
       <div className="flex-none z-30 bg-surface">
-        {isBlockedByMe ? (
+        {isOtherUserDeleted ? (
+          <div className="p-4 bg-surface border-t border-borderSubtle text-center text-textMuted flex flex-col items-center justify-center gap-2">
+            <p className="text-sm font-medium">👤 This user has deleted their account. You can no longer message them.</p>
+          </div>
+        ) : isBlockedByMe ? (
           <div className="p-4 bg-surface border-t border-borderSubtle text-center text-textMuted flex flex-col items-center justify-center gap-2">
             <p className="text-sm font-medium">🚫 You have blocked this user. They cannot send you messages.</p>
             <button 

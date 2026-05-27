@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Avatar } from "../ui/Avatar"; 
 
-function ChatHeader({ chatName, chatImage, isOnline, isGroup, participantCount, onSearchClick, onInfoClick, onCallClick, onVideoCallClick }) {
+function ChatHeader({ chatName, chatImage, isOnline, isGroup, participantCount, onSearchClick, onInfoClick, onCallClick, onVideoCallClick, isOtherUserDeleted }) {
   const navigate = useNavigate();
 
   return (
@@ -27,14 +27,14 @@ function ChatHeader({ chatName, chatImage, isOnline, isGroup, participantCount, 
           <Avatar 
             src={chatImage} 
             alt={chatName} 
-            isOnline={!isGroup ? isOnline : undefined} 
+            isOnline={!isGroup && !isOtherUserDeleted ? isOnline : undefined} 
             size="md" 
           />
           <div>
             <h2 className="font-semibold text-textPrimary tracking-tight">{chatName}</h2>
             <div className="flex items-center gap-1.5 mt-0.5">
               <p className="text-xs text-textMuted font-medium">
-                {isGroup ? `${participantCount} participants` : (isOnline ? "Online" : "Offline")}
+                {isGroup ? `${participantCount} participants` : (isOtherUserDeleted ? "Deleted Account" : (isOnline ? "Online" : "Offline"))}
               </p>
             </div>
           </div>
@@ -43,7 +43,7 @@ function ChatHeader({ chatName, chatImage, isOnline, isGroup, participantCount, 
       
       {/* Right Section: Actions - 🛡️ UPGRADED to w-11 h-11 (44x44dp) */}
       <div className="flex items-center gap-1">
-        {!isGroup && (
+        {!isGroup && !isOtherUserDeleted && (
           <>
             <button 
               onClick={onCallClick}

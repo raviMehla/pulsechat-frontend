@@ -3,12 +3,50 @@ import { Avatar } from "../ui/Avatar";
 import FocusLock from "react-focus-lock";
 
 function UserInfoModal({ isOpen, onClose, chat, currentUserId, isBlockedByMe, onToggleBlock, onDeleteChat }) {
-  console.log("UserInfoModal Render Check:", { isOpen, chatExists: !!chat, isGroup: chat?.isGroup });
   if (!isOpen || !chat || chat.isGroup) return null;
 
-  // Extract the target user's details
-  const targetUser = chat.users.find(u => String(u._id) !== String(currentUserId));
-  if (!targetUser) return null;
+  // Extract the target user's details — may be null/undefined if the user was
+  // hard-deleted directly from MongoDB (bypassing the safe-delete pipeline).
+  const targetUser = chat.users?.find(u => u && String(u._id) !== String(currentUserId));
+
+  // 🛡️ HARD-DELETE RESILIENCE: If the other user's account no longer exists, render
+  // a minimal "Deleted Account" modal that still allows the user to clean up the stale chat.
+  if (!targetUser) {
+    return createPortal(
+      <FocusLock>
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="bg-surface border border-borderSubtle p-6 rounded-2xl w-full max-w-sm shadow-2xl flex flex-col items-center">
+
+            {/* Header / Close */}
+            <div className="w-full flex justify-end mb-2">
+              <button onClick={onClose} className="text-textMuted hover:text-white text-xl font-bold">×</button>
+            </div>
+
+            {/* Deleted Account Placeholder */}
+            <div className="w-24 h-24 mb-4 rounded-full bg-surface border-2 border-borderSubtle flex items-center justify-center">
+              <span className="text-4xl">👤</span>
+            </div>
+            <h2 className="text-xl font-bold text-textPrimary mb-1">Deleted Account</h2>
+            <p className="text-sm text-textMuted text-center mb-6 leading-relaxed">
+              This user has permanently deleted their account. Their profile is no longer available.
+            </p>
+
+            {/* Only show Delete Chat — block action makes no sense for a deleted account */}
+            <div className="w-full">
+              <button
+                onClick={onDeleteChat}
+                className="w-full py-2.5 bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500 hover:text-white rounded-lg text-sm font-semibold transition-colors"
+              >
+                Delete Chat
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </FocusLock>,
+      document.body
+    );
+  }
 
   return createPortal(
     <FocusLock>

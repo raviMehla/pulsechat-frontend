@@ -248,9 +248,19 @@ function ChatList() {
           </div>
         ) : (
           chats.map((chat) => {
-            const otherUser = chat.isGroup ? null : chat.users.find(u => String(u._id) !== String(currentUserId));
-            const chatName = chat.isGroup ? chat.chatName : (otherUser?.name || otherUser?.username || "User");
-            const chatImage = chat.isGroup ? chat.groupAvatar : otherUser?.profilePic; 
+            // 🛡️ HARD-DELETE RESILIENCE: Guard against null entries in chat.users.
+            // Mongoose sets populated references to null when the source document is gone.
+            const otherUser = chat.isGroup
+              ? null
+              : chat.users.find(u => u && String(u._id) !== String(currentUserId));
+
+            const isDeletedAccount = !chat.isGroup && (chat.otherUserDeleted || !otherUser);
+
+            const chatName = chat.isGroup
+              ? chat.chatName
+              : (otherUser?.name || otherUser?.username || "Deleted Account");
+
+            const chatImage = chat.isGroup ? chat.groupAvatar : (otherUser?.profilePic || null);
             const isActive = location.pathname.includes(chat._id);
 
             return (
@@ -268,7 +278,8 @@ function ChatList() {
                     time: chat.lastMessage?.createdAt 
                       ? new Date(chat.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
                       : "",
-                    unread: chat.unreadCount || 0 
+                    unread: chat.unreadCount || 0,
+                    isDeletedAccount,
                   }}
                 />
               </div>

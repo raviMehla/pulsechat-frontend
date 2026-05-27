@@ -17,6 +17,9 @@ function MessageBubble({
   const isOwnMessage = String(senderId) === String(currentUserId);
   const [showPicker, setShowPicker] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const [audioError, setAudioError] = useState(false);
 
   const EMOJIS = ['👍', '❤️', '😂', '🔥', '😮'];
 
@@ -174,24 +177,66 @@ function MessageBubble({
             <div className="pointer-events-auto"> {/* Re-enable clicks for media buttons */}
               {msg.messageType === "image" ? (
                 <div className="flex flex-col mt-1">
-                  <img src={msg.fileUrl} alt="attachment" className="max-w-full rounded-md border border-black/10 object-contain pointer-events-none" />
-                  <button onClick={(e) => handleDownload(e, msg.fileUrl, msg.fileName || 'image.jpg')} className="mt-2 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-black/20 hover:bg-black/30 rounded-md text-xs font-semibold transition-colors">
-                    {isDownloading ? "Downloading..." : "⬇️ Save Image"}
-                  </button>
+                  {imageError ? (
+                    <div className="flex flex-col items-center justify-center p-6 bg-black/20 rounded-md text-white/65 border border-white/10 gap-1 select-none">
+                      <span className="text-2xl">🖼️</span>
+                      <span className="text-xs font-medium">Image unavailable</span>
+                    </div>
+                  ) : (
+                    <img 
+                      src={msg.fileUrl} 
+                      alt="attachment" 
+                      onError={() => setImageError(true)}
+                      className="max-w-full rounded-md border border-black/10 object-contain pointer-events-none" 
+                    />
+                  )}
+                  {!imageError && (
+                    <button onClick={(e) => handleDownload(e, msg.fileUrl, msg.fileName || 'image.jpg')} className="mt-2 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-black/20 hover:bg-black/30 rounded-md text-xs font-semibold transition-colors">
+                      {isDownloading ? "Downloading..." : "⬇️ Save Image"}
+                    </button>
+                  )}
                 </div>
               ) : msg.messageType === "video" ? (
                 <div className="flex flex-col mt-1">
-                  <video src={msg.fileUrl} controls className="max-w-full rounded-md border border-black/10" />
-                  <button onClick={(e) => handleDownload(e, msg.fileUrl, msg.fileName || 'video.mp4')} className="mt-2 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-black/20 hover:bg-black/30 rounded-md text-xs font-semibold transition-colors">
-                    {isDownloading ? "Downloading..." : "⬇️ Save Video"}
-                  </button>
+                  {videoError ? (
+                    <div className="flex flex-col items-center justify-center p-6 bg-black/20 rounded-md text-white/65 border border-white/10 gap-1 select-none">
+                      <span className="text-2xl">🎥</span>
+                      <span className="text-xs font-medium">Video unavailable</span>
+                    </div>
+                  ) : (
+                    <video 
+                      src={msg.fileUrl} 
+                      controls 
+                      onError={() => setVideoError(true)}
+                      className="max-w-full rounded-md border border-black/10" 
+                    />
+                  )}
+                  {!videoError && (
+                    <button onClick={(e) => handleDownload(e, msg.fileUrl, msg.fileName || 'video.mp4')} className="mt-2 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-black/20 hover:bg-black/30 rounded-md text-xs font-semibold transition-colors">
+                      {isDownloading ? "Downloading..." : "⬇️ Save Video"}
+                    </button>
+                  )}
                 </div>
               ) : msg.messageType === "audio" ? (
                 <div className="flex flex-col mt-1 min-w-[200px]">
-                  <audio src={msg.fileUrl} controls className="w-full h-10" />
-                  <button onClick={(e) => handleDownload(e, msg.fileUrl, msg.fileName || 'audio.mp3')} className="mt-2 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-black/20 hover:bg-black/30 rounded-md text-xs font-semibold transition-colors">
-                    {isDownloading ? "Downloading..." : "⬇️ Save Audio"}
-                  </button>
+                  {audioError ? (
+                    <div className="flex flex-col items-center justify-center p-6 bg-black/20 rounded-md text-white/65 border border-white/10 gap-1 select-none">
+                      <span className="text-2xl">🎵</span>
+                      <span className="text-xs font-medium">Audio unavailable</span>
+                    </div>
+                  ) : (
+                    <audio 
+                      src={msg.fileUrl} 
+                      controls 
+                      onError={() => setAudioError(true)}
+                      className="w-full h-10" 
+                    />
+                  )}
+                  {!audioError && (
+                    <button onClick={(e) => handleDownload(e, msg.fileUrl, msg.fileName || 'audio.mp3')} className="mt-2 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-black/20 hover:bg-black/30 rounded-md text-xs font-semibold transition-colors">
+                      {isDownloading ? "Downloading..." : "⬇️ Save Audio"}
+                    </button>
+                  )}
                 </div>
               ) : msg.messageType === "file" ? (
                 <div className="flex flex-col bg-black/10 border border-white/10 rounded-lg p-3 mt-1">
