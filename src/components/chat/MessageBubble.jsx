@@ -78,7 +78,6 @@ function MessageBubble({
   if (msg.isDeleted) {
     return (
       <motion.div 
-        layout 
         initial="hidden" 
         animate="visible" 
         variants={entryVariants}
@@ -93,7 +92,6 @@ function MessageBubble({
 
   return (
     <motion.div 
-      layout // This makes bubbles seamlessly slide up when new ones arrive
       initial="hidden"
       animate="visible"
       variants={entryVariants}

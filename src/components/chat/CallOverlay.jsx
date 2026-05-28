@@ -186,7 +186,7 @@ const MinimizedAudioPill = ({ callerLabel, chatImage, incomingCall, timer, isMut
         top: -window.innerHeight + 80, 
         bottom: 20 
       }}
-      dragElastic={0.1}
+      dragElastic={0}
       dragMomentum={false}
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
@@ -292,7 +292,7 @@ const MinimizedVideoPip = ({ callerLabel, chatImage, incomingCall, timer, isMute
         top: -window.innerHeight + 184,
         bottom: 0
       }}
-      dragElastic={0.1}
+      dragElastic={0}
       dragMomentum={false}
       initial={{ scale: 0.8, opacity: 0, y: 40 }}
       animate={{ scale: 1, opacity: 1, y: 0 }}
