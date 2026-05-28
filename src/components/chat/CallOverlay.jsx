@@ -179,17 +179,27 @@ const ActionBtn = ({ onClick, color, hoverColor, label, children, pulse = false,
 const MinimizedAudioPill = ({ callerLabel, chatImage, incomingCall, timer, isMuted, onToggleMute, onEndCall, onExpand }) => (
   createPortal(
     <motion.div
+      drag
+      dragConstraints={{ 
+        left: -window.innerWidth / 2 + 140, 
+        right: window.innerWidth / 2 - 140, 
+        top: -window.innerHeight + 80, 
+        bottom: 20 
+      }}
+      dragElastic={0.1}
+      dragMomentum={false}
       initial={{ y: 100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 100, opacity: 0 }}
       transition={{ type: "spring", damping: 28, stiffness: 320 }}
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-4 py-2.5 rounded-2xl shadow-2xl"
+      className="fixed bottom-6 z-[200] flex items-center gap-3 px-4 py-2.5 rounded-2xl shadow-2xl cursor-grab active:cursor-grabbing"
       style={{
         background: "rgba(19,19,28,0.92)",
         backdropFilter: "blur(24px)",
         border: "1px solid rgba(93,214,176,0.25)",
         boxShadow: "0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(93,214,176,0.1)",
         minWidth: 280,
+        left: "calc(50% - 140px)"
       }}
     >
       {/* Avatar with green pulse dot */}
@@ -275,11 +285,20 @@ const MinimizedAudioPill = ({ callerLabel, chatImage, incomingCall, timer, isMut
 const MinimizedVideoPip = ({ callerLabel, chatImage, incomingCall, timer, isMuted, isVideoMuted, onToggleMute, onEndCall, onExpand, setRemoteVideo }) => (
   createPortal(
     <motion.div
+      drag
+      dragConstraints={{
+        left: -window.innerWidth + 244,
+        right: 0,
+        top: -window.innerHeight + 184,
+        bottom: 0
+      }}
+      dragElastic={0.1}
+      dragMomentum={false}
       initial={{ scale: 0.8, opacity: 0, y: 40 }}
       animate={{ scale: 1, opacity: 1, y: 0 }}
       exit={{ scale: 0.8, opacity: 0, y: 40 }}
       transition={{ type: "spring", damping: 28, stiffness: 320 }}
-      className="fixed bottom-6 right-6 z-[200] rounded-2xl overflow-hidden shadow-2xl"
+      className="fixed bottom-6 right-6 z-[200] rounded-2xl overflow-hidden shadow-2xl cursor-grab active:cursor-grabbing"
       style={{
         width: 220,
         height: 160,

@@ -19,6 +19,7 @@ export const useWebRTC = (_currentUserId) => {
   const callTypeRef = useRef("audio"); // 🛡️ Fix stale closure in socket event listener
   const iceCandidateQueue = useRef([]);
   const iceDropTimeoutRef = useRef(null);
+  const cameraIndexRef = useRef(null);
 
   // Fetches fresh TURN + STUN ICE credentials from the backend.
   // This keeps the Metered API key secret (server-side only).
@@ -262,6 +263,7 @@ export const useWebRTC = (_currentUserId) => {
     setIsMuted(false);
     setIsVideoMuted(false);
     setFacingMode("user");
+    cameraIndexRef.current = null;
     currentCallTarget.current = null;
   };
 
@@ -347,7 +349,36 @@ export const useWebRTC = (_currentUserId) => {
         currentIndex = videoDevices.findIndex((d) => d.label === currentLabel);
       }
 
-      const nextIndex = currentIndex !== -1 ? (currentIndex + 1) % videoDevices.length : 1;
+      let nextIndex = -1;
+      if (currentIndex !== -1) {
+        nextIndex = (currentIndex + 1) % videoDevices.length;
+      } else {
+        // Fallback 1: Try to determine active index by facingMode of the active track
+        const activeFacingMode = videoTrack.getSettings().facingMode;
+        if (activeFacingMode) {
+          const targetFacing = activeFacingMode === "user" ? "environment" : "user";
+          nextIndex = videoDevices.findIndex((d) => {
+            const label = (d.label || "").toLowerCase();
+            if (targetFacing === "environment") {
+              return label.includes("back") || label.includes("rear") || label.includes("environment") || label.includes("outer");
+            } else {
+              return label.includes("front") || label.includes("user") || label.includes("forward") || label.includes("selfie");
+            }
+          });
+        }
+
+        // Fallback 2: Toggle based on our index tracker ref
+        if (nextIndex === -1) {
+          if (cameraIndexRef.current !== null) {
+            nextIndex = (cameraIndexRef.current + 1) % videoDevices.length;
+          } else {
+            nextIndex = 1; // Default to index 1 (usually the second camera)
+          }
+        }
+      }
+
+      // Track the selected index for the next switch click
+      cameraIndexRef.current = nextIndex;
       const targetDeviceId = videoDevices[nextIndex].deviceId;
 
       // Stop the old track FIRST to release the camera hardware lock
