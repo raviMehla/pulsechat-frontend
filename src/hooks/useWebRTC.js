@@ -337,14 +337,18 @@ export const useWebRTC = (_currentUserId) => {
 
       // 2. Find the next device to toggle to
       const currentDeviceId = videoTrack.getSettings().deviceId;
-      let targetDeviceId = "";
+      const currentLabel = videoTrack.label;
+      let currentIndex = -1;
+
       if (currentDeviceId) {
-        const currentIndex = videoDevices.findIndex((d) => d.deviceId === currentDeviceId);
-        const nextIndex = (currentIndex + 1) % videoDevices.length;
-        targetDeviceId = videoDevices[nextIndex].deviceId;
-      } else {
-        targetDeviceId = videoDevices[1].deviceId;
+        currentIndex = videoDevices.findIndex((d) => d.deviceId === currentDeviceId);
       }
+      if (currentIndex === -1 && currentLabel) {
+        currentIndex = videoDevices.findIndex((d) => d.label === currentLabel);
+      }
+
+      const nextIndex = currentIndex !== -1 ? (currentIndex + 1) % videoDevices.length : 1;
+      const targetDeviceId = videoDevices[nextIndex].deviceId;
 
       // Stop the old track FIRST to release the camera hardware lock
       videoTrack.stop();

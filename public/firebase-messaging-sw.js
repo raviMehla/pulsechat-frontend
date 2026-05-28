@@ -18,17 +18,11 @@ firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
 // Background message handler
+// Note: We only log the background message payload here.
+// The Firebase SDK automatically displays the notification if the payload contains a 'notification' block,
+// which avoids duplicate notifications.
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-
-  const notificationTitle = payload.notification?.title || "New Message";
-  const notificationOptions = {
-    body: payload.notification?.body || "You have a new message.",
-    icon: '/vite.svg', // Replace with your app logo in the public folder
-    data: payload.data // Contains our routing info (chatId) for Phase 3
-  };
-
-  self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // Phase 3: Click-to-Open Routing
