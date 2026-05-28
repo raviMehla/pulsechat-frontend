@@ -66,6 +66,14 @@ const VideoOff = ({ size = 20, className = "" }) => (
   </svg>
 );
 
+const FlipCamera = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M23 4v6h-6" />
+    <path d="M1 20v-6h6" />
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+  </svg>
+);
+
 const ChevronUp = ({ size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="18 15 12 9 6 15" />
@@ -373,8 +381,10 @@ function CallOverlay({
   callType,
   isMuted,            // 🛡️ RECEIVED FROM CHATVIEW
   isVideoMuted,       // 🛡️ RECEIVED FROM CHATVIEW
+  facingMode,         // 🛡️ RECEIVED FROM CHATVIEW
   onToggleMute,       // 🛡️ RECEIVED FROM CHATVIEW
   onToggleVideoMute,  // 🛡️ RECEIVED FROM CHATVIEW
+  onSwitchCamera,     // 🛡️ FOR CAMERA FLIPPING
   onAccept,
   onDecline,
   onCancel,
@@ -388,6 +398,30 @@ function CallOverlay({
   const [speakerOff, setSpeakerOff] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const timer = useCallTimer(callStatus === "connected");
+
+  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
+  const [isFlapping, setIsFlapping] = useState(false);
+
+  useEffect(() => {
+    if (callType === "video" && callStatus === "connected") {
+      navigator.mediaDevices.enumerateDevices()
+        .then((devices) => {
+          const videoDevices = devices.filter((device) => device.kind === "videoinput");
+          setHasMultipleCameras(videoDevices.length >= 2);
+        })
+        .catch((err) => {
+          console.warn("Failed to check for multiple cameras:", err);
+        });
+    }
+  }, [callType, callStatus]);
+
+  const handleFlip = async () => {
+    setIsFlapping(true);
+    if (onSwitchCamera) {
+      await onSwitchCamera();
+    }
+    setTimeout(() => setIsFlapping(false), 600);
+  };
 
   const setAudio = useCallback((el) => {
     audioRef.current = el;
@@ -678,7 +712,7 @@ function CallOverlay({
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover transform scale-x-[-1]"
+              className={`w-full h-full object-cover transform ${facingMode === "user" ? "scale-x-[-1]" : ""}`}
             />
             {isVideoMuted && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 gap-2 p-3 text-center">
@@ -734,20 +768,38 @@ function CallOverlay({
                   active: isMuted,
                   icon: <MicOff size={18} />,
                   onClick: onToggleMute,
+                  show: true,
                 },
                 {
                   label: isVideoMuted ? "Camera On" : "Camera Off",
                   active: isVideoMuted,
                   icon: isVideoMuted ? <VideoOff size={18} /> : <VideoOn size={18} />,
                   onClick: onToggleVideoMute,
+                  show: true,
+                },
+                {
+                  label: "Flip Camera",
+                  active: false,
+                  icon: (
+                    <motion.div
+                      animate={{ rotate: isFlapping ? 180 : 0 }}
+                      transition={{ duration: 0.5, ease: "easeInOut" }}
+                      className="flex items-center justify-center"
+                    >
+                      <FlipCamera size={18} />
+                    </motion.div>
+                  ),
+                  onClick: handleFlip,
+                  show: hasMultipleCameras,
                 },
                 {
                   label: speakerOff ? "Speaker Off" : "Speaker On",
                   active: speakerOff,
                   icon: <VolumeOff size={18} />,
                   onClick: () => setSpeakerOff((s) => !s),
+                  show: true,
                 },
-              ].map(({ label, active, icon, onClick }) => (
+              ].filter(btn => btn.show).map(({ label, active, icon, onClick }) => (
                 <motion.button
                   key={label}
                   whileHover={{ scale: 1.05 }}

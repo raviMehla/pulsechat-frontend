@@ -10,6 +10,7 @@ export const useWebRTC = (_currentUserId) => {
   const [callType, setCallType] = useState("audio"); // audio, video
   const [isMuted, setIsMuted] = useState(false); // 🛡️ Hardware Mute State
   const [isVideoMuted, setIsVideoMuted] = useState(false); // 🛡️ Hardware Camera State
+  const [facingMode, setFacingMode] = useState("user"); // user, environment
   
   const peerConnection = useRef(null);
   const currentCallTarget = useRef(null);
@@ -68,6 +69,7 @@ export const useWebRTC = (_currentUserId) => {
       localStreamRef.current = stream;
       setIsMuted(false); // Reset mute state on new call
       setIsVideoMuted(false); // Reset video mute state on new call
+      setFacingMode("user"); // Reset facing mode on new call
     } catch (err) {
       if (type === "video") {
         console.warn("Video access denied or unavailable, trying audio-only fallback...", err);
@@ -259,6 +261,7 @@ export const useWebRTC = (_currentUserId) => {
     callTypeRef.current = "audio";
     setIsMuted(false);
     setIsVideoMuted(false);
+    setFacingMode("user");
     currentCallTarget.current = null;
   };
 
@@ -318,6 +321,59 @@ export const useWebRTC = (_currentUserId) => {
     };
   }, []);
 
+  // 🛡️ ARCHITECTURAL UPGRADE: Switch Camera (Front/Back)
+  const switchCamera = async () => {
+    if (!localStreamRef.current) return;
+    const videoTrack = localStreamRef.current.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    // Detect the current facingMode or toggle it
+    const currentFacingMode = videoTrack.getSettings().facingMode || "user";
+    const newFacingMode = currentFacingMode === "user" ? "environment" : "user";
+
+    try {
+      const constraints = {
+        audio: false,
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: newFacingMode
+        }
+      };
+      
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      
+      // Preserve the current video mute (enabled) state on the new track
+      newVideoTrack.enabled = !isVideoMuted;
+
+      // Replace the track in RTCPeerConnection sender
+      if (peerConnection.current) {
+        const senders = peerConnection.current.getSenders();
+        const videoSender = senders.find((s) => s.track && s.track.kind === "video");
+        if (videoSender) {
+          await videoSender.replaceTrack(newVideoTrack);
+        }
+      }
+
+      // Stop the old track
+      videoTrack.stop();
+
+      // Update the local stream ref
+      localStreamRef.current.removeTrack(videoTrack);
+      localStreamRef.current.addTrack(newVideoTrack);
+
+      // Trigger state change with a new MediaStream instance so UI re-renders
+      setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+      setFacingMode(newFacingMode);
+
+      return newFacingMode;
+    } catch (err) {
+      console.error("[WebRTC] Failed to switch camera:", err);
+      toast.error("Failed to switch camera: " + err.message);
+    }
+  };
+
   return {
     localStream,
     remoteStream,
@@ -325,8 +381,10 @@ export const useWebRTC = (_currentUserId) => {
     callType,
     isMuted,
     isVideoMuted,
+    facingMode,
     toggleMute, // Exported so CallOverlay can use it
     toggleVideoMute, // Exported so CallOverlay can use it
+    switchCamera, // Exported so CallOverlay can use it
     initiateCall,
     acceptCall,
     cleanupCall

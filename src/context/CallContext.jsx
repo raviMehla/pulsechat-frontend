@@ -140,8 +140,10 @@ export const CallProvider = ({ children }) => {
         callType={webrtc.callType}
         isMuted={webrtc.isMuted}
         isVideoMuted={webrtc.isVideoMuted}
+        facingMode={webrtc.facingMode}
         onToggleMute={webrtc.toggleMute}
         onToggleVideoMute={webrtc.toggleVideoMute}
+        onSwitchCamera={webrtc.switchCamera}
         onAccept={handleAcceptCall}
         onDecline={handleDeclineCall}
         onCancel={handleCancelCall}
