@@ -346,6 +346,9 @@ export const useWebRTC = (_currentUserId) => {
         targetDeviceId = videoDevices[1].deviceId;
       }
 
+      // Stop the old track FIRST to release the camera hardware lock
+      videoTrack.stop();
+
       // 3. Request user media for the selected camera device
       const constraints = {
         audio: false,
@@ -356,7 +359,19 @@ export const useWebRTC = (_currentUserId) => {
         }
       };
       
-      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      let newStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        console.warn("[WebRTC] Failed to acquire video track with target device constraints, trying generic fallback...", err);
+        newStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          }
+        });
+      }
       const newVideoTrack = newStream.getVideoTracks()[0];
       
       // Preserve the current video mute (enabled) state on the new track
@@ -370,9 +385,6 @@ export const useWebRTC = (_currentUserId) => {
           await videoSender.replaceTrack(newVideoTrack);
         }
       }
-
-      // Stop the old track
-      videoTrack.stop();
 
       // Update the local stream ref
       localStreamRef.current.removeTrack(videoTrack);
