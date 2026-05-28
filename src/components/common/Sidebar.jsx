@@ -78,9 +78,10 @@ function Sidebar() {
           title="My Profile"
           className={({ isActive }) =>
             `hidden md:flex mt-2 rounded-full transition-all ${
-              isActive ? "ring-2 ring-accent ring-offset-2 ring-offset-surface" : "opacity-80 hover:opacity-100"
+              isActive ? "opacity-100" : "opacity-75 hover:opacity-100"
             }`
           }
+          style={({ isActive }) => isActive ? { boxShadow: "0 0 0 2px var(--accent-primary), 0 0 10px rgba(124,110,247,0.35)" } : {}}
         >
           <Avatar src={user?.profilePic} alt={user?.name || "User"} size="sm" isOnline={true} />
         </NavLink>

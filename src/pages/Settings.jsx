@@ -377,12 +377,18 @@ function Settings() {
               <select
                 value={supportCategory}
                 onChange={(e) => setSupportCategory(e.target.value)}
-                className="w-full bg-background border border-borderSubtle rounded-xl py-2.5 px-3 text-sm text-textPrimary outline-none focus:border-accent transition-colors"
+                className="appearance-none w-full border border-borderSubtle rounded-xl py-2.5 px-3 text-sm outline-none focus:border-accent transition-colors"
+                style={{
+                  background: "#0B0B0F",
+                  color: "#F0EFF8",
+                  WebkitAppearance: "none",
+                  MozAppearance: "none",
+                }}
               >
-                <option value="Bug Report">🐛 Bug Report</option>
-                <option value="Account Issue">🔐 Account Issue</option>
-                <option value="Feature Request">✨ Feature Request</option>
-                <option value="Other">💬 Other</option>
+                <option value="Bug Report" style={{ background: "#131318", color: "#F0EFF8" }}>🐛 Bug Report</option>
+                <option value="Account Issue" style={{ background: "#131318", color: "#F0EFF8" }}>🔐 Account Issue</option>
+                <option value="Feature Request" style={{ background: "#131318", color: "#F0EFF8" }}>✨ Feature Request</option>
+                <option value="Other" style={{ background: "#131318", color: "#F0EFF8" }}>💬 Other</option>
               </select>
             </div>
             <div>

@@ -86,12 +86,18 @@ const PrivacyRow = ({ label, description, value, onChange, disabled }) => (
       value={value}
       onChange={onChange}
       disabled={disabled}
-      className="bg-surface/80 border border-borderSubtle rounded-lg text-xs font-semibold text-textPrimary px-3 py-2 outline-none focus:border-accent transition-all disabled:opacity-50 cursor-pointer hover:border-accent/50 flex-shrink-0"
-      style={{ minWidth: 110 }}
+      className="appearance-none border border-borderSubtle rounded-lg text-xs font-semibold px-3 py-2 outline-none focus:border-accent transition-all disabled:opacity-50 cursor-pointer hover:border-accent/50 flex-shrink-0"
+      style={{
+        minWidth: 110,
+        background: "#1A1A22",
+        color: "#F0EFF8",
+        WebkitAppearance: "none",
+        MozAppearance: "none",
+      }}
     >
-      <option value="everyone">Everyone</option>
-      <option value="contacts">Contacts</option>
-      <option value="nobody">Nobody</option>
+      <option value="everyone" style={{ background: "#1A1A22", color: "#F0EFF8" }}>Everyone</option>
+      <option value="contacts" style={{ background: "#1A1A22", color: "#F0EFF8" }}>Contacts</option>
+      <option value="nobody" style={{ background: "#1A1A22", color: "#F0EFF8" }}>Nobody</option>
     </select>
   </div>
 );
@@ -322,13 +328,21 @@ function Profile() {
           </button>
 
           {/* Avatar area */}
-          <div className="relative group cursor-pointer mt-10" style={{ width: 88, height: 88, flexShrink: 0 }}>
+          <div
+            className="relative group cursor-pointer mt-10"
+            style={{
+              width: 88,
+              height: 88,
+              flexShrink: 0,
+              borderRadius: "50%",
+              boxShadow: "0 0 0 2px rgba(255,255,255,0.12), 0 0 24px rgba(124,110,247,0.2)",
+            }}
+          >
             <Avatar
               src={previewUrl}
               alt={formData.name || "User"}
               size="xxl"
-              className="transition-opacity group-hover:opacity-80 ring-2 ring-white/10"
-              style={{ width: 88, height: 88, borderRadius: "50%" }}
+              className="transition-opacity group-hover:opacity-80"
             />
             <button
               type="button"
