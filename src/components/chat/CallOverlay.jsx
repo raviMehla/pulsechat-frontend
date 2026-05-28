@@ -35,6 +35,15 @@ const MicOff = ({ size = 20, className = "" }) => (
   </svg>
 );
 
+const MicOn = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+    <line x1="12" y1="19" x2="12" y2="23" />
+    <line x1="8" y1="23" x2="16" y2="23" />
+  </svg>
+);
+
 const VolumeOff = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
@@ -57,17 +66,38 @@ const VideoOff = ({ size = 20, className = "" }) => (
   </svg>
 );
 
+const ChevronUp = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="18 15 12 9 6 15" />
+  </svg>
+);
+
+const ChevronDown = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
+
+const MaximizeIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 3 21 3 21 9" />
+    <polyline points="9 21 3 21 3 15" />
+    <line x1="21" y1="3" x2="14" y2="10" />
+    <line x1="3" y1="21" x2="10" y2="14" />
+  </svg>
+);
+
 /* ─────────────────────────────────────────────
    ANIMATED WAVEFORM
 ───────────────────────────────────────────── */
-const SoundWave = () => {
+const SoundWave = ({ small = false }) => {
   const bars = [0.4, 0.7, 1.0, 0.7, 0.4, 0.6, 0.9, 0.6, 0.4];
   return (
-    <div className="flex items-center gap-[3px] h-7">
+    <div className={`flex items-center gap-[3px] ${small ? "h-4" : "h-7"}`}>
       {bars.map((amp, i) => (
         <motion.div
           key={i}
-          className="w-[3px] rounded-full bg-success opacity-85"
+          className={`${small ? "w-[2px]" : "w-[3px]"} rounded-full bg-success opacity-85`}
           animate={{ scaleY: [0.3 * amp, 1.0 * amp, 0.3 * amp] }}
           transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut", delay: i * 0.1 }}
           style={{ height: "100%", transformOrigin: "center" }}
@@ -136,6 +166,200 @@ const ActionBtn = ({ onClick, color, hoverColor, label, children, pulse = false,
 );
 
 /* ─────────────────────────────────────────────
+   MINIMIZED AUDIO PILL
+───────────────────────────────────────────── */
+const MinimizedAudioPill = ({ callerLabel, chatImage, incomingCall, timer, isMuted, onToggleMute, onEndCall, onExpand }) => (
+  createPortal(
+    <motion.div
+      initial={{ y: 100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 100, opacity: 0 }}
+      transition={{ type: "spring", damping: 28, stiffness: 320 }}
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-4 py-2.5 rounded-2xl shadow-2xl"
+      style={{
+        background: "rgba(19,19,28,0.92)",
+        backdropFilter: "blur(24px)",
+        border: "1px solid rgba(93,214,176,0.25)",
+        boxShadow: "0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(93,214,176,0.1)",
+        minWidth: 280,
+      }}
+    >
+      {/* Avatar with green pulse dot */}
+      <div className="relative flex-shrink-0">
+        <Avatar
+          src={incomingCall ? incomingCall.callerAvatar : chatImage}
+          alt={callerLabel}
+          size="sm"
+          style={{ width: 36, height: 36, borderRadius: "50%" }}
+        />
+        <span
+          className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-success border-2 border-[rgba(19,19,28,0.92)]"
+          style={{ boxShadow: "0 0 6px var(--status-success)" }}
+        />
+      </div>
+
+      {/* Name + waveform + timer */}
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className="text-xs font-semibold text-white truncate leading-tight">{callerLabel}</span>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <SoundWave small />
+          <span className="text-[10px] font-mono text-success tabular-nums">{timer}</span>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* Mute toggle */}
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.94 }}
+          onClick={onToggleMute}
+          title={isMuted ? "Unmute" : "Mute"}
+          className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+          style={{
+            background: isMuted ? "rgba(255,100,100,0.2)" : "rgba(255,255,255,0.08)",
+            border: isMuted ? "1px solid rgba(255,100,100,0.3)" : "1px solid rgba(255,255,255,0.12)",
+            color: isMuted ? "#ff6464" : "rgba(255,255,255,0.7)",
+          }}
+        >
+          {isMuted ? <MicOff size={14} /> : <MicOn size={14} />}
+        </motion.button>
+
+        {/* End call */}
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.94 }}
+          onClick={onEndCall}
+          title="End Call"
+          className="w-8 h-8 rounded-full flex items-center justify-center"
+          style={{
+            background: "var(--status-danger)",
+            boxShadow: "0 4px 14px rgba(239,68,68,0.4)",
+          }}
+        >
+          <PhoneOff size={14} className="text-white" />
+        </motion.button>
+
+        {/* Expand / Maximize */}
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.94 }}
+          onClick={onExpand}
+          title="Expand Call"
+          className="w-8 h-8 rounded-full flex items-center justify-center"
+          style={{
+            background: "rgba(255,255,255,0.08)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            color: "rgba(255,255,255,0.7)",
+          }}
+        >
+          <ChevronUp size={14} />
+        </motion.button>
+      </div>
+    </motion.div>,
+    document.body
+  )
+);
+
+/* ─────────────────────────────────────────────
+   MINIMIZED VIDEO PIP CARD
+───────────────────────────────────────────── */
+const MinimizedVideoPip = ({ callerLabel, chatImage, incomingCall, timer, isMuted, isVideoMuted, onToggleMute, onEndCall, onExpand, setRemoteVideo }) => (
+  createPortal(
+    <motion.div
+      initial={{ scale: 0.8, opacity: 0, y: 40 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
+      exit={{ scale: 0.8, opacity: 0, y: 40 }}
+      transition={{ type: "spring", damping: 28, stiffness: 320 }}
+      className="fixed bottom-6 right-6 z-[200] rounded-2xl overflow-hidden shadow-2xl"
+      style={{
+        width: 220,
+        height: 160,
+        border: "1.5px solid rgba(93,214,176,0.3)",
+        boxShadow: "0 12px 50px rgba(0,0,0,0.75), 0 0 0 1px rgba(93,214,176,0.1)",
+        background: "#0b0b0f",
+      }}
+    >
+      {/* Remote video feed or avatar fallback */}
+      <video
+        ref={setRemoteVideo}
+        autoPlay
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+
+      {/* Gradient overlay at top and bottom */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none" />
+
+      {/* Top: name + timer */}
+      <div className="absolute top-2 left-3 right-3 flex items-center justify-between">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-semibold text-white leading-tight truncate max-w-[100px]">{callerLabel}</span>
+          <div className="flex items-center gap-1 mt-0.5">
+            <SoundWave small />
+            <span className="text-[9px] font-mono text-success tabular-nums">{timer}</span>
+          </div>
+        </div>
+        {/* Expand button */}
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.94 }}
+          onClick={onExpand}
+          title="Expand Call"
+          className="w-6 h-6 rounded-full flex items-center justify-center"
+          style={{
+            background: "rgba(255,255,255,0.15)",
+            border: "1px solid rgba(255,255,255,0.2)",
+            color: "white",
+          }}
+        >
+          <MaximizeIcon size={11} />
+        </motion.button>
+      </div>
+
+      {/* Bottom: mute + end */}
+      <div className="absolute bottom-2.5 left-0 right-0 flex items-center justify-center gap-2.5">
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.94 }}
+          onClick={onToggleMute}
+          title={isMuted ? "Unmute" : "Mute"}
+          className="w-8 h-8 rounded-full flex items-center justify-center"
+          style={{
+            background: isMuted ? "rgba(255,100,100,0.3)" : "rgba(255,255,255,0.15)",
+            border: "1px solid rgba(255,255,255,0.2)",
+            color: isMuted ? "#ff6464" : "white",
+          }}
+        >
+          {isMuted ? <MicOff size={13} /> : <MicOn size={13} />}
+        </motion.button>
+
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.94 }}
+          onClick={onEndCall}
+          title="End Call"
+          className="w-9 h-9 rounded-full flex items-center justify-center"
+          style={{
+            background: "var(--status-danger)",
+            boxShadow: "0 4px 14px rgba(239,68,68,0.5)",
+          }}
+        >
+          <PhoneOff size={15} className="text-white" />
+        </motion.button>
+      </div>
+
+      {/* Connected indicator dot */}
+      <div
+        className="absolute top-2 right-2 w-2 h-2 rounded-full bg-success"
+        style={{ boxShadow: "0 0 6px var(--status-success)" }}
+      />
+    </motion.div>,
+    document.body
+  )
+);
+
+/* ─────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────── */
 function CallOverlay({
@@ -162,6 +386,7 @@ function CallOverlay({
   const remoteVideoRef = useRef(null);
   
   const [speakerOff, setSpeakerOff] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const timer = useCallTimer(callStatus === "connected");
 
   const setAudio = useCallback((el) => {
@@ -201,6 +426,13 @@ function CallOverlay({
     if (audioRef.current) audioRef.current.muted = speakerOff;
     if (remoteVideoRef.current) remoteVideoRef.current.muted = speakerOff;
   }, [speakerOff]);
+
+  // Reset minimize when call ends
+  useEffect(() => {
+    if (callStatus === "idle") {
+      setIsMinimized(false);
+    }
+  }, [callStatus]);
 
   // 🛡️ Autoplay Silent Ringtone & Audio Fallback using Web Audio API Synthesis
   useEffect(() => {
@@ -275,7 +507,6 @@ function CallOverlay({
         }
         
         if (audioCtx.state === "suspended") {
-          // Attempt to resume
           audioCtx.resume();
         }
 
@@ -301,10 +532,8 @@ function CallOverlay({
 
         // Dual-frequency US telephone ring style: 440Hz + 480Hz combined
         const now = audioCtx.currentTime;
-        // Two quick rings of 0.8s each, separated by 0.2s pause
         playTone(440, now, 0.8);
         playTone(480, now, 0.8);
-
         playTone(440, now + 1.0, 0.8);
         playTone(480, now + 1.0, 0.8);
       } catch (err) {
@@ -312,10 +541,8 @@ function CallOverlay({
       }
     };
 
-    // First attempt to play
     playRingtoneBeep();
     
-    // Check if autoplay was blocked by seeing if audio context is suspended
     const blockCheckTimeout = setTimeout(() => {
       if (audioCtx && audioCtx.state === "suspended") {
         console.warn("🔔 Autoplay blocked! Activating flashing title and push notifications.");
@@ -324,10 +551,8 @@ function CallOverlay({
       }
     }, 150);
 
-    // Repeat telephone double-ring every 3.5 seconds
     ringInterval = setInterval(playRingtoneBeep, 3500);
 
-    // Click/touchstart listener to unlock the AudioContext and stop title flashing
     const handleUnlockInteraction = () => {
       if (audioCtx && audioCtx.state === "suspended") {
         audioCtx.resume().then(() => {
@@ -373,7 +598,51 @@ function CallOverlay({
   /* ── Pulse ring colour ── */
   const ringColor = isIncoming ? "var(--status-success)" : "var(--accent-primary)";
 
-  // Render Connected Video Call Interface
+  // ─────────────────────────────────────────────
+  // MINIMIZED STATES — only when connected
+  // ─────────────────────────────────────────────
+  if (isMinimized && isConnected) {
+    if (callType === "video") {
+      return (
+        <AnimatePresence>
+          <MinimizedVideoPip
+            callerLabel={callerLabel}
+            chatImage={chatImage}
+            incomingCall={incomingCall}
+            timer={timer}
+            isMuted={isMuted}
+            isVideoMuted={isVideoMuted}
+            onToggleMute={onToggleMute}
+            onEndCall={onEndCall}
+            onExpand={() => setIsMinimized(false)}
+            setRemoteVideo={setRemoteVideo}
+          />
+        </AnimatePresence>
+      );
+    }
+    // Audio minimized pill (audio element still needed)
+    return (
+      <AnimatePresence>
+        <>
+          <audio ref={setAudio} autoPlay className="hidden" />
+          <MinimizedAudioPill
+            callerLabel={callerLabel}
+            chatImage={chatImage}
+            incomingCall={incomingCall}
+            timer={timer}
+            isMuted={isMuted}
+            onToggleMute={onToggleMute}
+            onEndCall={onEndCall}
+            onExpand={() => setIsMinimized(false)}
+          />
+        </>
+      </AnimatePresence>
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // FULL VIDEO CALL UI (Connected)
+  // ─────────────────────────────────────────────
   if (callType === "video" && isConnected) {
     return createPortal(
       <FocusLock>
@@ -434,6 +703,25 @@ function CallOverlay({
                 {timer}
               </span>
             </div>
+          </div>
+
+          {/* Minimize button — top-left */}
+          <div className="absolute top-5 left-6 z-30">
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={() => setIsMinimized(true)}
+              title="Minimize Call"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white/80 hover:text-white transition-colors"
+              style={{
+                background: "rgba(0,0,0,0.45)",
+                backdropFilter: "blur(10px)",
+                border: "1px solid rgba(255,255,255,0.15)",
+              }}
+            >
+              <ChevronDown size={13} />
+              Minimize
+            </motion.button>
           </div>
 
           {/* Bottom Control Overlay */}
@@ -502,7 +790,9 @@ function CallOverlay({
     );
   }
 
-  // Render Ringing/Dialing/Voice Call Interface
+  // ─────────────────────────────────────────────
+  // FULL AUDIO / RINGING / DIALING INTERFACE
+  // ─────────────────────────────────────────────
   return createPortal(
     <FocusLock>
       <motion.div
@@ -532,6 +822,27 @@ function CallOverlay({
       />
 
       <audio ref={setAudio} autoPlay className="hidden" />
+
+      {/* Minimize button — only when connected */}
+      {isConnected && (
+        <div className="absolute top-6 right-6 z-20">
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.94 }}
+            onClick={() => setIsMinimized(true)}
+            title="Minimize Call"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "rgba(255,255,255,0.65)",
+            }}
+          >
+            <ChevronDown size={13} />
+            Minimize
+          </motion.button>
+        </div>
+      )}
 
       {/* ── Glass card ── */}
       <motion.div
@@ -634,7 +945,7 @@ function CallOverlay({
                 label: isMuted ? "Unmute" : "Mute",
                 active: isMuted,
                 icon: <MicOff size={18} />,
-                onClick: onToggleMute, // 🛡️ Calls the physical hardware toggle in useWebRTC.js
+                onClick: onToggleMute,
               },
               {
                 label: speakerOff ? "Speaker Off" : "Speaker On",

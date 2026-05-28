@@ -72,10 +72,18 @@ function Sidebar() {
           </svg>
         </button>
 
-        {/* Current User Avatar */}
-        <div className="hidden md:block mt-2">
+        {/* Current User Avatar — clickable, routes to /profile */}
+        <NavLink
+          to="/profile"
+          title="My Profile"
+          className={({ isActive }) =>
+            `hidden md:flex mt-2 rounded-full transition-all ${
+              isActive ? "ring-2 ring-accent ring-offset-2 ring-offset-surface" : "opacity-80 hover:opacity-100"
+            }`
+          }
+        >
           <Avatar src={user?.profilePic} alt={user?.name || "User"} size="sm" isOnline={true} />
-        </div>
+        </NavLink>
       </div>
     </nav>
   );
