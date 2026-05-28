@@ -267,7 +267,7 @@ function MessageBubble({
                   {isOwnMessage && (
                     <div className="text-[11px] font-bold tracking-tighter">
                       {msg.status === "pending" ? (
-                        <span className="animate-pulse inline-block mr-0.5" title="Sending...">🕒</span>
+                        <span className="animate-pulse inline-block mr-0.5 opacity-60" title="Sending...">🕒</span>
                       ) : msg.status === "failed" ? (
                         <button 
                           onClick={(e) => { e.stopPropagation(); onRetry && onRetry(msg); }} 
@@ -277,11 +277,14 @@ function MessageBubble({
                           ⚠️ Retry
                         </button>
                       ) : msg.readBy?.length > 0 ? (
-                        <span>✓✓</span>
+                        // ✓✓ Blue — message has been READ by recipient
+                        <span className="text-blue-300" title="Read">✓✓</span>
                       ) : msg.deliveredTo?.length > 0 ? (
-                        <span>✓✓</span>
+                        // ✓✓ Grey — message DELIVERED to device but not yet read
+                        <span className="opacity-70" title="Delivered">✓✓</span>
                       ) : (
-                        <span>✓</span>
+                        // ✓ Single grey — message sent to server, recipient offline
+                        <span className="opacity-70" title="Sent">✓</span>
                       )}
                     </div>
                   )}

@@ -408,17 +408,26 @@ function ChatView() {
         if (!textToSend) return;
 
         // 🛡️ Optimistic UI implementation: Add pending message to state instantly
-        const tempId = `temp-${Date.now()}`;
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const myUserString = localStorage.getItem("user");
-        const myUserObj = myUserString ? JSON.parse(myUserString) : { _id: currentUserId, name: "Me" };
+        const myUserObj = myUserString ? JSON.parse(myUserString) : {};
+        
+        // 🛡️ Normalize sender: guarantee _id is always currentUserId so isOwnMessage = true
+        // localStorage user may store id as '_id', 'id', or have no field at all
+        const normalizedSender = {
+          ...myUserObj,
+          _id: currentUserId,  // Always override with the authoritative userId
+        };
         
         const optimisticMsg = {
           _id: tempId,
           content: textToSend,
-          sender: myUserObj,
+          sender: normalizedSender,
           createdAt: new Date().toISOString(),
           messageType: "text",
           status: "pending",
+          deliveredTo: [],
+          readBy: [],
           replyTo: replyingTo ? {
             _id: replyingTo._id,
             content: replyingTo.content,

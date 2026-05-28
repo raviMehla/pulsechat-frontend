@@ -92,20 +92,27 @@ export const useChatSocket = ({
 
     const onMessagesDelivered = ({ chatId: eventChatId, userId }) => {
       if (String(eventChatId) !== String(chatId)) return;
-      setMessages((prev) => prev.map((m) => 
-        String(m.sender?._id) === String(currentUserId) 
-          ? { ...m, deliveredTo: [...(m.deliveredTo || []), userId] } 
-          : m
-      ));
+      // Only update messages sent by ME (the current user) — not messages by others
+      // Also skip if userId is the current user themselves (sender joined their own room)
+      if (String(userId) === String(currentUserId)) return;
+      setMessages((prev) => prev.map((m) => {
+        if (String(m.sender?._id || m.sender) !== String(currentUserId)) return m;
+        // Don't append if already delivered to this user
+        const alreadyDelivered = (m.deliveredTo || []).some(d => String(d) === String(userId));
+        if (alreadyDelivered) return m;
+        return { ...m, deliveredTo: [...(m.deliveredTo || []), userId] };
+      }));
     };
 
     const onMessagesRead = ({ chatId: eventChatId, userId }) => {
       if (String(eventChatId) !== String(chatId)) return;
-      setMessages((prev) => prev.map((m) => 
-        String(m.sender?._id) === String(currentUserId) 
-          ? { ...m, readBy: [...(m.readBy || []), userId] } 
-          : m
-      ));
+      if (String(userId) === String(currentUserId)) return;
+      setMessages((prev) => prev.map((m) => {
+        if (String(m.sender?._id || m.sender) !== String(currentUserId)) return m;
+        const alreadyRead = (m.readBy || []).some(r => String(r) === String(userId));
+        if (alreadyRead) return m;
+        return { ...m, readBy: [...(m.readBy || []), userId] };
+      }));
     };
 
     const onMessageReacted = ({ messageId, reactions }) => {
