@@ -327,17 +327,32 @@ export const useWebRTC = (_currentUserId) => {
     const videoTrack = localStreamRef.current.getVideoTracks()[0];
     if (!videoTrack) return;
 
-    // Detect the current facingMode or toggle it
-    const currentFacingMode = videoTrack.getSettings().facingMode || "user";
-    const newFacingMode = currentFacingMode === "user" ? "environment" : "user";
-
     try {
+      // 1. Enumerate all video input devices
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter((d) => d.kind === "videoinput");
+      if (videoDevices.length < 2) {
+        throw new Error("No other camera detected on this device.");
+      }
+
+      // 2. Find the next device to toggle to
+      const currentDeviceId = videoTrack.getSettings().deviceId;
+      let targetDeviceId = "";
+      if (currentDeviceId) {
+        const currentIndex = videoDevices.findIndex((d) => d.deviceId === currentDeviceId);
+        const nextIndex = (currentIndex + 1) % videoDevices.length;
+        targetDeviceId = videoDevices[nextIndex].deviceId;
+      } else {
+        targetDeviceId = videoDevices[1].deviceId;
+      }
+
+      // 3. Request user media for the selected camera device
       const constraints = {
         audio: false,
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
-          facingMode: newFacingMode
+          ...(targetDeviceId ? { deviceId: { exact: targetDeviceId } } : { facingMode: "environment" })
         }
       };
       
@@ -365,6 +380,21 @@ export const useWebRTC = (_currentUserId) => {
 
       // Trigger state change with a new MediaStream instance so UI re-renders
       setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+
+      // 4. Update the facingMode state dynamically from new track settings/labels for mirroring
+      const settings = newVideoTrack.getSettings();
+      let newFacingMode = settings.facingMode;
+      if (!newFacingMode && newVideoTrack.label) {
+        const label = newVideoTrack.label.toLowerCase();
+        if (label.includes("back") || label.includes("rear") || label.includes("environment") || label.includes("outer")) {
+          newFacingMode = "environment";
+        } else {
+          newFacingMode = "user";
+        }
+      }
+      if (!newFacingMode) {
+        newFacingMode = "user";
+      }
       setFacingMode(newFacingMode);
 
       return newFacingMode;
