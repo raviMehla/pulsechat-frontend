@@ -1,9 +1,16 @@
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Avatar } from "../ui/Avatar";
 import { disconnectSocket } from "../../services/socket";
+import { getAvatarUrl } from "../../utils/getAvatarUrl";
+import StarredMessagesModal from "../chat/StarredMessagesModal";
+import CallHistoryModal from "../chat/CallHistoryModal";
 
 function Sidebar() {
   const navigate = useNavigate();
+  const [isStarredOpen, setIsStarredOpen] = useState(false);
+  const [isCallsOpen, setIsCallsOpen] = useState(false);
+  
   // Safely parse the user object we stored during our Login fix
   const userString = localStorage.getItem("user");
   const user = userString ? JSON.parse(userString) : null;
@@ -29,7 +36,8 @@ function Sidebar() {
     }`;
 
   return (
-    <nav className="flex md:flex-col items-center justify-between bg-surface border-t md:border-t-0 md:border-r border-borderSubtle md:w-[72px] h-[60px] md:h-full py-2 md:py-6 px-6 md:px-0 z-50 flex-shrink-0">
+    <>
+      <nav className="flex md:flex-col items-center justify-between bg-surface border-t md:border-t-0 md:border-r border-borderSubtle md:w-[72px] h-[60px] md:h-full py-2 md:py-6 px-6 md:px-0 z-50 flex-shrink-0">
       
       {/* Top Section (Desktop) / Left Section (Mobile) */}
       <div className="flex md:flex-col items-center gap-2 md:gap-6 w-full md:w-auto justify-around md:justify-start">
@@ -58,6 +66,22 @@ function Sidebar() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         </NavLink>
+
+        <button 
+          onClick={() => setIsStarredOpen(true)}
+          className="p-3 rounded-xl text-textMuted hover:bg-background hover:text-yellow-400 transition-all flex items-center justify-center relative group"
+          title="Starred Messages"
+        >
+          <span className="text-xl group-hover:scale-125 transition-transform">⭐</span>
+        </button>
+
+        <button 
+          onClick={() => setIsCallsOpen(true)}
+          className="p-3 rounded-xl text-textMuted hover:bg-background hover:text-accent transition-all flex items-center justify-center relative group"
+          title="Call History"
+        >
+          <span className="text-xl group-hover:scale-125 transition-transform">📞</span>
+        </button>
       </div>
 
       {/* Bottom Section (Desktop) / Right Section (Mobile) */}
@@ -83,10 +107,22 @@ function Sidebar() {
           }
           style={({ isActive }) => isActive ? { boxShadow: "0 0 0 2px var(--accent-primary), 0 0 10px rgba(124,110,247,0.35)" } : {}}
         >
-          <Avatar src={user?.profilePic} alt={user?.name || "User"} size="sm" isOnline={true} />
+          <Avatar src={getAvatarUrl(user?.profilePic)} alt={user?.name || "User"} size="sm" isOnline={true} />
         </NavLink>
       </div>
     </nav>
+    <StarredMessagesModal 
+      isOpen={isStarredOpen}
+      onClose={() => setIsStarredOpen(false)}
+      onStarredMessageClick={(chatId, msg) => {
+        navigate(`/chat/${chatId}?jumpTo=${msg._id}`);
+      }}
+    />
+    <CallHistoryModal 
+      isOpen={isCallsOpen}
+      onClose={() => setIsCallsOpen(false)}
+    />
+    </>
   );
 }
 

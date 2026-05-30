@@ -164,8 +164,42 @@ function App() {
       const onConnect = () => console.log("🟢 Global Socket connected:", socket.id);
       const onDisconnect = (reason) => console.warn("🔴 Global Socket disconnected:", reason);
 
+      const onOfflineMissedCalls = (missedCalls) => {
+        console.log("☎️ Received offline missed calls:", missedCalls);
+        missedCalls.forEach(call => {
+          const callTime = new Date(call.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const callDate = new Date(call.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
+          toast((t) => (
+            <div className="flex flex-col gap-1 p-1">
+              <p className="text-sm font-bold text-textPrimary">Missed Call</p>
+              <p className="text-xs text-textSecondary">
+                You missed a {call.type} call from <span className="font-semibold text-accent">{call.callerName}</span> at {callTime} on {callDate}.
+              </p>
+              <div className="flex gap-2 justify-end mt-1">
+                <button
+                  onClick={() => toast.dismiss(t.id)}
+                  className="px-2.5 py-1 bg-surface border border-borderSubtle hover:bg-background rounded-md text-[11px] font-semibold text-textMuted transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ), {
+            duration: 8000,
+            icon: call.type === 'video' ? '📹' : '📞',
+            style: {
+              background: '#131318',
+              color: '#FFFFFF',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '16px',
+            }
+          });
+        });
+      };
+
       socket.on("connect", onConnect);
       socket.on("disconnect", onDisconnect);
+      socket.on("offline_missed_calls", onOfflineMissedCalls);
 
       // 🛡️ ARCHITECTURAL UPGRADE: The Mobile Foreground Resiliency Engine
       // Forces the socket to instantly reconnect the millisecond the user unlocks their phone
@@ -185,6 +219,7 @@ function App() {
       return () => {
         socket.off("connect", onConnect);
         socket.off("disconnect", onDisconnect);
+        socket.off("offline_missed_calls", onOfflineMissedCalls);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
         disconnectSocket();
       };

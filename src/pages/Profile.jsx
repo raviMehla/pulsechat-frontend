@@ -20,6 +20,7 @@ import {
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Avatar } from "../components/ui/Avatar"; 
+import { getAvatarUrl } from "../utils/getAvatarUrl";
 
 /* ─────────────────────────────────────────────
    EDIT PENCIL ICON
@@ -129,7 +130,7 @@ function Profile() {
 
   // Image Upload States
   const [selectedFile, setSelectedFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(initialUser.profilePic || null);
+  const [previewUrl, setPreviewUrl] = useState(getAvatarUrl(initialUser.profilePic));
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -144,7 +145,7 @@ function Profile() {
         };
         setFormData(newFormData);
         setDraftData(newFormData);
-        setPreviewUrl(freshUser.profilePic || null);
+        setPreviewUrl(getAvatarUrl(freshUser.profilePic));
       } catch (error) {
         console.error("Failed to fetch fresh profile:", error);
       }
@@ -172,7 +173,7 @@ function Profile() {
 
   const handleCancelEdit = () => {
     setDraftData({ ...formData });
-    setPreviewUrl(user.profilePic || null);
+    setPreviewUrl(getAvatarUrl(user.profilePic));
     setSelectedFile(null);
     setIsEditMode(false);
   };
@@ -624,7 +625,7 @@ function Profile() {
                         const blockedId = blockedUser._id || blockedUser;
                         const displayName = blockedUser.name || "Blocked User";
                         const usernameText = blockedUser.username ? `@${blockedUser.username}` : "";
-                        const avatarSrc = blockedUser.profilePic;
+                        const avatarSrc = getAvatarUrl(blockedUser.profilePic);
                         return (
                           <div key={blockedId} className="flex items-center justify-between py-2.5 px-3 bg-background rounded-xl border border-borderSubtle/50">
                             <div className="flex items-center gap-3">

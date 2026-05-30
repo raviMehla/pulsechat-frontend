@@ -12,6 +12,7 @@ import {
   deleteChat
 } from "../../services/chat.api";
 import { Avatar } from "../ui/Avatar"; 
+import { getAvatarUrl } from "../../utils/getAvatarUrl";
 import { useConfirm } from "../../hooks/useConfirm";
 import ConfirmDialog from "../ui/ConfirmDialog";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
@@ -208,7 +209,7 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
           {/* GROUP DETAILS SECTION */}
           <div className="flex flex-col items-center pb-4 border-b border-borderSubtle">
             <div className="relative mb-4 group w-16 h-16">
-              <Avatar src={avatarPreview || chat.groupAvatar} alt={chat.chatName} size="xl" />
+              <Avatar src={avatarPreview || getAvatarUrl(chat.groupAvatar)} alt={chat.chatName} size="xl" />
               {isAdmin && (
                 <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity border border-borderSubtle">
                   <span className="text-white text-[10px] uppercase font-bold tracking-wider">Edit</span>
@@ -284,7 +285,7 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
                       className="p-2 hover:bg-surface cursor-pointer flex items-center justify-between border-b border-borderSubtle last:border-0"
                     >
                       <div className="flex items-center gap-2">
-                        <Avatar src={user.profilePic} alt={user.name} size="sm" />
+                        <Avatar src={getAvatarUrl(user.profilePic)} alt={user.name} size="sm" />
                         <div>
                           <span className="text-sm text-textPrimary block">{user.name}</span>
                           <span className="text-xs text-textMuted">{user.email}</span>
@@ -311,7 +312,7 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
                 return (
                   <div key={user._id} className="flex justify-between items-center bg-background p-2 rounded-md border border-borderSubtle">
                     <div className="flex items-center gap-3">
-                      <Avatar src={user.profilePic} alt={user.name} size="sm" isOnline={user.isOnline} />
+                      <Avatar src={getAvatarUrl(user.profilePic)} alt={user.name} size="sm" isOnline={user.isOnline} />
                       <div className="flex flex-col">
                         <span className="text-sm text-textPrimary font-medium">
                           {user.name} {isMe && <span className="text-textMuted text-xs italic">(You)</span>}

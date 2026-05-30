@@ -22,7 +22,11 @@ export const useChatSocket = ({
     if (!socket) return;
 
     // Technical Standard 1(c) & 1(f): Room Management & Resilience
-    const joinRoom = () => socket.emit("join_chat", chatId);
+    const joinRoom = () => {
+      if (chatId && !chatId.startsWith("broadcast_")) {
+        socket.emit("join_chat", chatId);
+      }
+    };
     
     joinRoom();
     socket.on("connect", joinRoom);
@@ -121,6 +125,18 @@ export const useChatSocket = ({
       ));
     };
 
+    const onMessageEdited = ({ messageId, content }) => {
+      setMessages((prev) => prev.map((m) => 
+        String(m._id) === String(messageId) ? { ...m, content, isEdited: true, editedAt: new Date() } : m
+      ));
+    };
+
+    const onMessagePinned = ({ messageId, isPinned }) => {
+      setMessages((prev) => prev.map((m) => 
+        String(m._id) === String(messageId) ? { ...m, isPinned } : m
+      ));
+    };
+
     const onMessageDeleted = ({ messageId }) => {
       setMessages((prev) => prev.map((m) => 
         String(m._id) === String(messageId) 
@@ -167,6 +183,8 @@ export const useChatSocket = ({
     socket.on("messages_read",      onMessagesRead);
     socket.on("message_reacted",   onMessageReacted);
     socket.on("message_deleted",   onMessageDeleted);
+    socket.on("message_edited",    onMessageEdited);
+    socket.on("message_pinned",    onMessagePinned);
     socket.on("group_updated",     onGroupUpdated); 
     socket.on("kicked_from_group", onKickedFromGroup); 
     socket.on("group_deleted",     onGroupDeleted); 
@@ -175,7 +193,9 @@ export const useChatSocket = ({
 
     // Cleanup
     return () => {
-      socket.emit("leave_chat", chatId); // 🛡️ Prevent ghost room emissions
+      if (chatId && !chatId.startsWith("broadcast_")) {
+        socket.emit("leave_chat", chatId); // 🛡️ Prevent ghost room emissions
+      }
 
       if (readReceiptTimeoutRef.current) {
         clearTimeout(readReceiptTimeoutRef.current);
@@ -193,6 +213,8 @@ export const useChatSocket = ({
       socket.off("messages_read",      onMessagesRead);
       socket.off("message_reacted",  onMessageReacted);
       socket.off("message_deleted",  onMessageDeleted);
+      socket.off("message_edited",   onMessageEdited);
+      socket.off("message_pinned",   onMessagePinned);
       socket.off("group_updated",    onGroupUpdated); 
       socket.off("kicked_from_group", onKickedFromGroup); 
       socket.off("group_deleted",     onGroupDeleted); 

@@ -1,4 +1,4 @@
-function ChatListHeader({ onOpenGroupModal, onOpenSearchModal }) {
+function ChatListHeader({ onOpenGroupModal, onOpenSearchModal, onOpenBroadcastModal }) {
   return (
     <div className="flex items-center justify-between p-4 border-b border-gray-800">
       <h1 className="text-xl font-semibold text-textPrimary">
@@ -10,13 +10,19 @@ function ChatListHeader({ onOpenGroupModal, onOpenSearchModal }) {
           className="hover:text-white transition-colors"
           title="Create New Group"
         >
-          ➕
+          👥
+        </button>
+        <button 
+          onClick={onOpenBroadcastModal}
+          className="hover:text-white transition-colors"
+          title="Broadcast Lists"
+        >
+          📢
         </button>
         {/* 🛡️ Wire up the Search Button */}
         <button onClick={onOpenSearchModal} className="hover:text-white transition-colors" title="Search Users">
           🔍
         </button>
-        <button className="hover:text-white transition-colors">⋮</button>
       </div>
     </div>
   );

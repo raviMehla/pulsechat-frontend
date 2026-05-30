@@ -80,3 +80,27 @@ export const searchChatMessages = async (chatId, query) => {
   const res = await api.get(`/message/search/${chatId}?query=${encodeURIComponent(query)}`);
   return res.data; 
 };
+
+// Edit a text message (within 15 mins)
+export const editMessage = async (messageId, content) => {
+  const res = await api.put(`/message/${messageId}/edit`, { content });
+  return res.data;
+};
+
+// Pin / Unpin a message in a chat
+export const pinMessage = async (messageId) => {
+  const res = await api.put(`/message/${messageId}/pin`);
+  return res.data;
+};
+
+// Star / Unstar a message for user
+export const starMessage = async (messageId) => {
+  const res = await api.put(`/message/${messageId}/star`);
+  return res.data;
+};
+
+// Fetch all starred messages across chats
+export const getStarredMessages = async () => {
+  const res = await api.get(`/message/starred`);
+  return res.data;
+};

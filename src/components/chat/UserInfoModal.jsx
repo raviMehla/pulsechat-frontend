@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import { Avatar } from "../ui/Avatar";
+import { getAvatarUrl } from "../../utils/getAvatarUrl";
 import FocusLock from "react-focus-lock";
 
 function UserInfoModal({ isOpen, onClose, chat, currentUserId, isBlockedByMe, onToggleBlock, onDeleteChat }) {
@@ -59,7 +60,7 @@ function UserInfoModal({ isOpen, onClose, chat, currentUserId, isBlockedByMe, on
         </div>
 
         {/* Profile Info */}
-        <Avatar src={targetUser.profilePic} alt={targetUser.name} size="xl" className="w-24 h-24 mb-4 text-4xl" />
+        <Avatar src={getAvatarUrl(targetUser.profilePic)} alt={targetUser.name} size="xl" className="w-24 h-24 mb-4 text-4xl" />
         <h2 className="text-2xl font-bold text-textPrimary mb-1">{targetUser.name}</h2>
         <p className="text-sm text-accent mb-4">@{targetUser.username}</p>
 

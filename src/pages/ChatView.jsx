@@ -1,6 +1,7 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState, useRef, useCallback } from "react";
 import api from "../services/api";
+import { getAvatarUrl } from "../utils/getAvatarUrl";
 import UserInfoModal from "../components/chat/UserInfoModal";
 import localforage from "localforage";
 import { 
@@ -10,11 +11,14 @@ import {
   sendMedia, 
   reactToMessage, 
   deleteMessage, 
-  fetchMessageContext 
+  fetchMessageContext,
+  editMessage,
+  pinMessage,
+  starMessage
 } from "../services/message.api";
 import { getSocket } from "../services/socket";
 import { getUserStatus, getMyProfile, toggleBlockUser } from "../services/user.api";
-import { getChats } from "../services/chat.api";
+import { getChats, accessChat } from "../services/chat.api";
 import { useChatSocket } from "../hooks/useChatSocket"; 
 import { MessageSkeleton } from "../components/chat/MessageSkeleton";
 import { useChat } from "../context/ChatContext";
@@ -93,6 +97,7 @@ function ChatView() {
   const [isOnline, setIsOnline]   = useState(false);
   const [chatName, setChatName]   = useState("Chat");
   const [isGroup, setIsGroup]     = useState(false);
+  const [isBroadcast, setIsBroadcast] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
@@ -139,10 +144,18 @@ function ChatView() {
     // Reset initial loading state asynchronously to prevent ESLint cascading render warning
     Promise.resolve().then(() => {
       setIsInitialLoading(true);
+      setIsBroadcast(id ? id.startsWith("broadcast_") : false);
     });
 
     const fetchMessages = async () => {
       try {
+        if (id && id.startsWith("broadcast_")) {
+          const broadcastMsgs = await localforage.getItem(`broadcast_messages_${id}`);
+          setMessages(broadcastMsgs || []);
+          setNextCursor(null);
+          setIsInitialLoading(false);
+          return;
+        }
         const data = await getMessages(id);
         const messagesData = data.messages || [];
         setMessages(messagesData);
@@ -161,6 +174,12 @@ function ChatView() {
 
     const loadCachedMessages = async () => {
       try {
+        if (id && id.startsWith("broadcast_")) {
+          const cachedData = await localforage.getItem(`broadcast_messages_${id}`);
+          setMessages(cachedData || []);
+          setIsInitialLoading(false);
+          return;
+        }
         const cachedData = await localforage.getItem(`messages_${id}`);
         if (cachedData && cachedData.messages) {
           setMessages(cachedData.messages);
@@ -176,21 +195,121 @@ function ChatView() {
     loadCachedMessages();
   }, [id]);
 
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const jumpTo = searchParams.get("jumpTo");
+
+  useEffect(() => {
+    if (jumpTo && messages.length > 0) {
+      const msgObj = messages.find(m => String(m._id) === String(jumpTo));
+      if (msgObj) {
+        handleJumpToMessage(msgObj);
+      } else {
+        handleJumpToMessage({ _id: jumpTo });
+      }
+      // Clean query parameter from URL to prevent infinite scrolling loops
+      const url = new URL(window.location);
+      url.searchParams.delete("jumpTo");
+      window.history.replaceState({}, document.title, url.pathname + url.search);
+    }
+  }, [jumpTo, messages]);
+
   // Persist messages to cache on any update (socket arrivals, reactions, deletions, retry queue updates)
   useEffect(() => {
     if (!isInitialLoading && id) {
-      localforage.setItem(`messages_${id}`, {
-        messages,
-        nextCursor
-      }).catch((err) => {
-        console.error("Failed to persist messages to IndexedDB:", err);
-      });
+      if (id.startsWith("broadcast_")) {
+        localforage.setItem(`broadcast_messages_${id}`, messages).catch((err) => {
+          console.error("Failed to persist broadcast messages:", err);
+        });
+      } else {
+        localforage.setItem(`messages_${id}`, {
+          messages,
+          nextCursor
+        }).catch((err) => {
+          console.error("Failed to persist messages to IndexedDB:", err);
+        });
+      }
     }
   }, [messages, nextCursor, id, isInitialLoading]);
+
+  // Offline queue auto-retry on reconnect
+  useEffect(() => {
+    if (!id || id.startsWith("broadcast_")) return;
+    
+    const socket = getSocket();
+    if (!socket) return;
+
+    const flushQueue = async () => {
+      try {
+        const queue = await localforage.getItem(`offline_queue_${id}`) || [];
+        if (queue.length === 0) return;
+
+        console.log(`🔌 Online! Flushing ${queue.length} pending messages...`);
+        const remainingQueue = [];
+
+        for (const item of queue) {
+          try {
+            const sentData = await sendMessage({
+              content: item.content,
+              chatId: id,
+              replyTo: item.replyToId
+            });
+
+            // Update the message status in messages list
+            setMessages((prev) => 
+              prev.map((m) => String(m._id) === String(item.tempId) ? { ...sentData, status: "sent" } : m)
+            );
+          } catch (err) {
+            console.error("Failed to send queued message, keeping in queue:", err);
+            remainingQueue.push(item);
+          }
+        }
+
+        await localforage.setItem(`offline_queue_${id}`, remainingQueue);
+      } catch (err) {
+        console.error("Failed to flush offline queue:", err);
+      }
+    };
+
+    socket.on("connect", flushQueue);
+    if (socket.connected) {
+      flushQueue();
+    }
+
+    return () => {
+      socket.off("connect", flushQueue);
+    };
+  }, [id]);
 
   useEffect(() => {
     const fetchChatInfo = async () => {
       try {
+        if (id && id.startsWith("broadcast_")) {
+          const storedLists = await localforage.getItem("broadcast_lists") || [];
+          const currentList = storedLists.find(l => l._id === id);
+          if (!currentList) {
+            toast.error("Broadcast list not found");
+            navigate("/");
+            return;
+          }
+          setIsGroup(false);
+          setIsBroadcast(true);
+          setChatName(currentList.chatName || "Broadcast List");
+          setParticipantCount(currentList.users?.length || 0);
+          setActiveChatData({
+            ...currentList,
+            isBroadcast: true
+          });
+          setChatImage(null);
+          setIsOtherUserDeleted(false);
+          setIsBlockedByMe(false);
+          setIsOnline(false);
+          otherUserIdRef.current = null;
+          return;
+        }
+
+        setIsBroadcast(false);
+
         const chats = await getChats();
         if (!Array.isArray(chats)) return;
 
@@ -205,7 +324,7 @@ function ChatView() {
           setChatName(currentChat.chatName || "Group");
           setParticipantCount(currentChat.users?.length || 0);
           setActiveChatData(currentChat);
-          setChatImage(currentChat.groupAvatar || null);
+          setChatImage(getAvatarUrl(currentChat.groupAvatar));
           return;
         }
 
@@ -222,7 +341,7 @@ function ChatView() {
 
         setChatName(other.name || other.username || "User");
         otherUserIdRef.current = other._id;
-        setChatImage(other.profilePic || null);
+        setChatImage(getAvatarUrl(other.profilePic));
         setActiveChatData(currentChat);
 
         try {
@@ -385,6 +504,93 @@ function ChatView() {
   
   const handleSend = async () => {
     try {
+      if (id.startsWith("broadcast_")) {
+        const textToSend = input.trim();
+        if (!textToSend && !selectedFile) return;
+
+        // 1. Get recipients list from localforage
+        const storedLists = await localforage.getItem("broadcast_lists") || [];
+        const currentList = storedLists.find(l => l._id === id);
+        if (!currentList || !currentList.users || currentList.users.length === 0) {
+          toast.error("No recipients in this broadcast list.");
+          return;
+        }
+
+        setIsUploading(true);
+        const tempMsgId = `broadcast-temp-${Date.now()}`;
+        const myUserString = localStorage.getItem("user");
+        const myUserObj = myUserString ? JSON.parse(myUserString) : {};
+        const normalizedSender = {
+          ...myUserObj,
+          _id: currentUserId,
+        };
+
+        const optimisticBroadcastMsg = {
+          _id: tempMsgId,
+          content: textToSend || (selectedFile ? selectedFile.name : ""),
+          sender: normalizedSender,
+          createdAt: new Date().toISOString(),
+          messageType: selectedFile 
+            ? (selectedFile.type.startsWith("image/") ? "image" : selectedFile.type.startsWith("video/") ? "video" : "file") 
+            : "text",
+          status: "sent",
+          fileName: selectedFile?.name || null,
+          deliveredTo: [],
+          readBy: [],
+        };
+
+        let fileToSend = selectedFile;
+        if (selectedFile && selectedFile.type.startsWith("image/") && selectedFile.type !== "image/gif") {
+          try {
+            fileToSend = await compressImage(selectedFile);
+          } catch (compressErr) {
+            console.error("Compression failed:", compressErr);
+          }
+        }
+
+        setInput("");
+        clearPreview();
+
+        // 2. Send individually to all users in the broadcast list
+        const sendPromises = currentList.users.map(async (recipient) => {
+          try {
+            const chatObj = await accessChat(recipient._id);
+            const targetChatId = chatObj._id || chatObj.data?._id;
+            
+            if (fileToSend) {
+              await sendMedia(targetChatId, fileToSend);
+            } else {
+              await sendMessage({ content: textToSend, chatId: targetChatId });
+            }
+          } catch (err) {
+            console.error(`Failed to send broadcast message to ${recipient.name}:`, err);
+          }
+        });
+
+        await Promise.all(sendPromises);
+
+        // Append to local broadcast message logs
+        const updatedMsgs = [...messages, optimisticBroadcastMsg];
+        setMessages(updatedMsgs);
+        await localforage.setItem(`broadcast_messages_${id}`, updatedMsgs);
+
+        // Update lastMessage inside the broadcast lists storage so it renders in sidebar
+        const updatedLists = storedLists.map(l => {
+          if (l._id === id) {
+            return {
+              ...l,
+              lastMessage: optimisticBroadcastMsg
+            };
+          }
+          return l;
+        });
+        await localforage.setItem("broadcast_lists", updatedLists);
+        
+        toast.success("Broadcast sent!");
+        setIsUploading(false);
+        return;
+      }
+
       if (selectedFile) {
         setIsUploading(true);
         const controller = new AbortController();
@@ -450,6 +656,17 @@ function ChatView() {
         } catch (apiErr) {
           console.error("Optimistic send failed:", apiErr);
           setMessages(prev => prev.map(m => m._id === tempId ? { ...m, status: "failed" } : m));
+          
+          // Save to offline queue for auto-retry
+          const queue = await localforage.getItem(`offline_queue_${id}`) || [];
+          queue.push({
+            tempId,
+            content: textToSend,
+            chatId: id,
+            replyToId: optimisticMsg.replyTo?._id || null
+          });
+          await localforage.setItem(`offline_queue_${id}`, queue);
+
           throw apiErr; // Let the outer catch handle the toast or standard logging
         }
       }
@@ -523,6 +740,55 @@ function ChatView() {
         }
       }
     });
+  };
+
+  const handleEditMessage = async (messageId, newContent) => {
+    try {
+      await editMessage(messageId, newContent);
+      setMessages((prev) => prev.map((m) => 
+        String(m._id) === String(messageId) ? { ...m, content: newContent, isEdited: true, editedAt: new Date() } : m
+      ));
+      toast.success("Message edited");
+    } catch (error) {
+      toast.error("Failed to edit message");
+    }
+  };
+
+  const handlePinMessage = async (messageId) => {
+    try {
+      const res = await pinMessage(messageId);
+      const isPinned = res.isPinned;
+      setMessages((prev) => prev.map((m) => {
+        if (String(m._id) === String(messageId)) {
+          return { ...m, isPinned };
+        }
+        if (isPinned && m.isPinned) {
+          return { ...m, isPinned: false };
+        }
+        return m;
+      }));
+      toast.success(isPinned ? "Message pinned" : "Message unpinned");
+    } catch (error) {
+      toast.error("Failed to pin message");
+    }
+  };
+
+  const handleStarMessage = async (messageId) => {
+    try {
+      await starMessage(messageId);
+      setMessages((prev) => prev.map((m) => {
+        if (String(m._id) === String(messageId)) {
+          const alreadyStarred = (m.isStarred || []).some(u => String(u._id || u) === String(currentUserId));
+          const updatedStarred = alreadyStarred 
+            ? (m.isStarred || []).filter(u => String(u._id || u) !== String(currentUserId))
+            : [...(m.isStarred || []), currentUserId];
+          return { ...m, isStarred: updatedStarred };
+        }
+        return m;
+      }));
+    } catch (error) {
+      toast.error("Failed to star message");
+    }
   };
 
 
@@ -607,6 +873,7 @@ function ChatView() {
     }
     startCall(otherUserIdRef.current, type, chatName, chatImage, id);
   };
+  const pinnedMessage = messages.find(m => m.isPinned && !m.isDeleted);
  
   // ─────────────────────────────────────────────
   // JSX RENDER
@@ -622,16 +889,49 @@ function ChatView() {
           chatName={chatName} 
           isOnline={isOnline} 
           isGroup={isGroup}
+          isBroadcast={isBroadcast}
           chatImage={chatImage}
           participantCount={participantCount}
           onSearchClick={() => setIsSearchOpen(!isSearchOpen)} 
           onInfoClick={() => {
-            isGroup ? setIsGroupInfoOpen(true) : setIsUserInfoOpen(true);
+            if (isBroadcast) {
+              const names = activeChatData?.users?.map(u => u.name || u.username).join(", ") || "No recipients";
+              toast(`Recipients: ${names}`, { icon: "📢", duration: 5000 });
+            } else {
+              isGroup ? setIsGroupInfoOpen(true) : setIsUserInfoOpen(true);
+            }
           }}
           onCallClick={() => handleInitiateCall("audio")}
           onVideoCallClick={() => handleInitiateCall("video")}
           isOtherUserDeleted={isOtherUserDeleted}
         />
+
+        {/* Pinned Message Banner */}
+        {pinnedMessage && (
+          <div 
+            onClick={() => handleJumpToMessage(pinnedMessage)}
+            className="flex items-center justify-between px-4 py-2.5 bg-accent/10 border-t border-borderSubtle cursor-pointer hover:bg-accent/15 transition-all select-none text-xs"
+          >
+            <div className="flex items-center gap-2 overflow-hidden">
+              <span className="text-accent text-sm">📌</span>
+              <div className="flex flex-col overflow-hidden text-left">
+                <span className="font-semibold text-[10px] text-accent uppercase tracking-wider">Pinned Message</span>
+                <span className="text-textSecondary truncate max-w-[500px]">
+                  {pinnedMessage.content || pinnedMessage.fileName || "Media Attachment"}
+                </span>
+              </div>
+            </div>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePinMessage(pinnedMessage._id);
+              }}
+              className="text-[10px] text-textMuted hover:text-danger font-medium ml-4 shrink-0 px-2 py-0.5 bg-background border border-borderSubtle hover:border-danger/25 rounded transition-all"
+            >
+              Unpin
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 2. FIXED TYPING INDICATOR */}
@@ -701,6 +1001,9 @@ function ChatView() {
                       onReact={handleReaction}
                       onDelete={handleDelete}
                       onRetry={handleRetry}
+                      onEdit={handleEditMessage}
+                      onPin={handlePinMessage}
+                      onStar={handleStarMessage}
                     />
                   </div>
                 );

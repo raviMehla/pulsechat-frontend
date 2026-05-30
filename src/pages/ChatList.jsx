@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import ChatItem from "../components/chat/ChatItem"; 
+import { getAvatarUrl } from "../utils/getAvatarUrl";
 import ChatListHeader from "../components/chat/ChatListHeader";
 import CreateGroupModal from "../components/chat/CreateGroupModal";
 import SearchUserModal from "../components/chat/SearchUserModal"; 
+import BroadcastListModal from "../components/chat/BroadcastListModal";
 import { getChats } from "../services/chat.api";
 import { getSocket } from "../services/socket"; 
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
@@ -11,10 +13,12 @@ import localforage from "localforage";
 
 
 function ChatList() {
+  const navigate = useNavigate();
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); 
+  const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
   
   const currentUserId = localStorage.getItem("userId");
   const location = useLocation();
@@ -61,7 +65,8 @@ function ChatList() {
       try {
         const data = await getChats();
         const chatsData = Array.isArray(data) ? data : [];
-        setChats(chatsData);
+        const broadcastLists = await localforage.getItem("broadcast_lists") || [];
+        setChats([...broadcastLists, ...chatsData]);
         await localforage.setItem("chats", chatsData);
       } catch (error) {
         console.error("Error fetching chats:", error);
@@ -73,8 +78,9 @@ function ChatList() {
     const loadCachedChats = async () => {
       try {
         const cachedChats = await localforage.getItem("chats");
+        const broadcastLists = await localforage.getItem("broadcast_lists") || [];
         if (cachedChats && Array.isArray(cachedChats)) {
-          setChats(cachedChats);
+          setChats([...broadcastLists, ...cachedChats]);
           setLoading(false);
         }
       } catch (error) {
@@ -103,10 +109,29 @@ function ChatList() {
     };
   }, []);
 
+  // Sync broadcast lists when modal is closed
+  useEffect(() => {
+    if (!isBroadcastModalOpen) {
+      const syncBroadcasts = async () => {
+        try {
+          const broadcastLists = await localforage.getItem("broadcast_lists") || [];
+          setChats((prev) => {
+            const backendChats = prev.filter((c) => !c.isBroadcast);
+            return [...broadcastLists, ...backendChats];
+          });
+        } catch (err) {
+          console.error("Failed to sync broadcast lists:", err);
+        }
+      };
+      syncBroadcasts();
+    }
+  }, [isBroadcastModalOpen]);
+
   // Persist local chats to cache on any update (socket arrivals, deletions, edits)
   useEffect(() => {
     if (!loading) {
-      localforage.setItem("chats", chats).catch((err) => {
+      const backendChats = chats.filter(c => !c.isBroadcast);
+      localforage.setItem("chats", backendChats).catch((err) => {
         console.error("Failed to persist chats to IndexedDB:", err);
       });
     }
@@ -218,6 +243,7 @@ function ChatList() {
       <ChatListHeader 
         onOpenGroupModal={() => setIsGroupModalOpen(true)} 
         onOpenSearchModal={() => setIsSearchModalOpen(true)} 
+        onOpenBroadcastModal={() => setIsBroadcastModalOpen(true)}
       />
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -250,17 +276,19 @@ function ChatList() {
           chats.map((chat) => {
             // 🛡️ HARD-DELETE RESILIENCE: Guard against null entries in chat.users.
             // Mongoose sets populated references to null when the source document is gone.
-            const otherUser = chat.isGroup
+            const otherUser = (chat.isGroup || chat.isBroadcast)
               ? null
               : chat.users.find(u => u && String(u._id) !== String(currentUserId));
 
-            const isDeletedAccount = !chat.isGroup && (chat.otherUserDeleted || !otherUser);
+            const isDeletedAccount = !chat.isGroup && !chat.isBroadcast && (chat.otherUserDeleted || !otherUser);
 
-            const chatName = chat.isGroup
-              ? chat.chatName
-              : (otherUser?.name || otherUser?.username || "Deleted Account");
+            const chatName = chat.isBroadcast
+              ? `📢 ${chat.chatName}`
+              : (chat.isGroup
+                ? chat.chatName
+                : (otherUser?.name || otherUser?.username || "Deleted Account"));
 
-            const chatImage = chat.isGroup ? chat.groupAvatar : (otherUser?.profilePic || null);
+            const chatImage = chat.isBroadcast ? null : (chat.isGroup ? getAvatarUrl(chat.groupAvatar) : getAvatarUrl(otherUser?.profilePic));
             const isActive = location.pathname.includes(chat._id);
 
             return (
@@ -272,6 +300,7 @@ function ChatList() {
                   chat={{
                     id: chat._id,
                     isGroup: chat.isGroup,
+                    isBroadcast: chat.isBroadcast,
                     name: chatName,
                     image: chatImage,
                     lastMessage: getLastMessagePreview(chat.lastMessage),
@@ -299,6 +328,12 @@ function ChatList() {
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         onChatCreated={handleChatCreated}
+      />
+
+      <BroadcastListModal
+        isOpen={isBroadcastModalOpen}
+        onClose={() => setIsBroadcastModalOpen(false)}
+        onSelectBroadcast={(list) => navigate(`/chat/${list._id}`)}
       />
     </div>
   );

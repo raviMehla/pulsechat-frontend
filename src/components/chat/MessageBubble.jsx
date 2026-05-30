@@ -11,7 +11,10 @@ function MessageBubble({
   onReply, 
   onReact, 
   onDelete,
-  onRetry 
+  onRetry,
+  onEdit,
+  onPin,
+  onStar
 }) {
   const senderId = msg.sender?._id || msg.sender;
   const isOwnMessage = String(senderId) === String(currentUserId);
@@ -20,6 +23,12 @@ function MessageBubble({
   const [imageError, setImageError] = useState(false);
   const [videoError, setVideoError] = useState(false);
   const [audioError, setAudioError] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(msg.content || "");
+
+  const isStarredByUser = msg.isStarred?.some(u => String(u._id || u) === String(currentUserId));
+  const msgType = msg.messageType || "text";
+  const isEditable = isOwnMessage && msgType === "text" && (Date.now() - new Date(msg.createdAt).getTime() < 15 * 60 * 1000);
 
   const EMOJIS = ['👍', '❤️', '😂', '🔥', '😮'];
 
@@ -30,6 +39,12 @@ function MessageBubble({
 
   const handleDeleteClick = () => {
     onDelete(msg._id);
+  };
+
+  const handleEditSave = () => {
+    if (!editText.trim()) return;
+    onEdit(msg._id, editText);
+    setIsEditing(false);
   };
 
 
@@ -90,6 +105,21 @@ function MessageBubble({
     );
   }
 
+  if (msg.messageType === "system") {
+    return (
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={entryVariants}
+        className="flex w-full justify-center mb-4 mt-2"
+      >
+        <div className="px-4 py-1.5 text-xs text-textMuted bg-background/50 border border-borderSubtle/50 rounded-full shadow-sm max-w-[85%] text-center backdrop-blur-sm">
+          {msg.content}
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div 
       initial="hidden"
@@ -122,14 +152,21 @@ function MessageBubble({
         <div className={`absolute bottom-0 hidden group-hover:flex items-center ${isOwnMessage ? "right-full pr-1" : "left-full pl-1"}`}>
           {!isOwnMessage ? (
             <>
-              <button onClick={() => setShowPicker(!showPicker)} className="w-11 h-11 flex items-center justify-center text-textMuted hover:text-accent" title="React">🙂</button>
-              <button onClick={onReply} className="w-11 h-11 flex items-center justify-center text-textMuted hover:text-accent" title="Reply">↩️</button>
+              <button onClick={() => onStar(msg._id)} className={`w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform ${isStarredByUser ? "text-yellow-400" : "text-textMuted hover:text-yellow-400"}`} title={isStarredByUser ? "Unstar" : "Star"}>⭐</button>
+              <button onClick={() => onPin(msg._id)} className={`w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform ${msg.isPinned ? "text-accent" : "text-textMuted hover:text-accent"}`} title={msg.isPinned ? "Unpin" : "Pin"}>📌</button>
+              <button onClick={() => setShowPicker(!showPicker)} className="w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform text-textMuted hover:text-accent" title="React">🙂</button>
+              <button onClick={onReply} className="w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform text-textMuted hover:text-accent" title="Reply">↩️</button>
             </>
           ) : (
             <>
-              <button onClick={onReply} className="w-11 h-11 flex items-center justify-center text-textMuted hover:text-accent" title="Reply">↩️</button>
-              <button onClick={() => setShowPicker(!showPicker)} className="w-11 h-11 flex items-center justify-center text-textMuted hover:text-accent" title="React">🙂</button>
-              <button onClick={handleDeleteClick} className="w-11 h-11 flex items-center justify-center text-textMuted hover:text-danger" title="Delete">🗑️</button>
+              <button onClick={onReply} className="w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform text-textMuted hover:text-accent" title="Reply">↩️</button>
+              <button onClick={() => setShowPicker(!showPicker)} className="w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform text-textMuted hover:text-accent" title="React">🙂</button>
+              {isEditable && (
+                <button onClick={() => { setIsEditing(true); setEditText(msg.content); }} className="w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform text-textMuted hover:text-accent" title="Edit">✏️</button>
+              )}
+              <button onClick={() => onPin(msg._id)} className={`w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform ${msg.isPinned ? "text-accent" : "text-textMuted hover:text-accent"}`} title={msg.isPinned ? "Unpin" : "Pin"}>📌</button>
+              <button onClick={() => onStar(msg._id)} className={`w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform ${isStarredByUser ? "text-yellow-400" : "text-textMuted hover:text-yellow-400"}`} title={isStarredByUser ? "Unstar" : "Star"}>⭐</button>
+              <button onClick={handleDeleteClick} className="w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform text-textMuted hover:text-danger" title="Delete">🗑️</button>
             </>
           )}
         </div>
@@ -250,15 +287,46 @@ function MessageBubble({
                   </button>
                 </div>
               ) : (
-                <span 
-                  className="whitespace-pre-wrap leading-relaxed" 
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content || "Unsupported message type") }}
-                />
+                isEditing ? (
+                  <div className="flex flex-col gap-1.5 min-w-[200px] pointer-events-auto">
+                    <textarea
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      className="w-full bg-black/25 text-white rounded-lg p-2 text-xs outline-none border border-white/10 resize-none h-14 font-sans focus:border-accent/40 transition-colors"
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        onClick={() => setIsEditing(false)}
+                        className="px-2.5 py-0.5 bg-white/10 hover:bg-white/15 active:scale-95 rounded text-[10px] text-white font-semibold transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleEditSave}
+                        className="px-2.5 py-0.5 bg-accent hover:bg-accent/80 active:scale-95 rounded text-[10px] text-white font-semibold transition-all"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <span 
+                    className="whitespace-pre-wrap leading-relaxed" 
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content || "Unsupported message type") }}
+                  />
+                )
               )}
             </div>
             
             {isLastInGroup && (
                <div className="flex items-center gap-1.5 self-end mt-1.5 opacity-80 pointer-events-none">
+                  {msg.isEdited && (
+                    <span className={`text-[9px] italic font-medium opacity-70 ${isOwnMessage ? 'text-white/80' : 'text-[#7A7890]'}`} title={`Edited at ${new Date(msg.editedAt || msg.updatedAt).toLocaleTimeString()}`}>Edited</span>
+                  )}
+                  {isStarredByUser && (
+                    <span className="text-[10px] text-yellow-400" title="Starred">⭐</span>
+                  )}
                   <span className={`text-[10px] font-medium tracking-wide ${isOwnMessage ? 'text-white/90' : 'text-[#7A7890]'}`}>
                     {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -275,13 +343,10 @@ function MessageBubble({
                           ⚠️ Retry
                         </button>
                       ) : msg.readBy?.length > 0 ? (
-                        // ✓✓ Blue — message has been READ by recipient
                         <span className="text-blue-300" title="Read">✓✓</span>
                       ) : msg.deliveredTo?.length > 0 ? (
-                        // ✓✓ Grey — message DELIVERED to device but not yet read
                         <span className="opacity-70" title="Delivered">✓✓</span>
                       ) : (
-                        // ✓ Single grey — message sent to server, recipient offline
                         <span className="opacity-70" title="Sent">✓</span>
                       )}
                     </div>
