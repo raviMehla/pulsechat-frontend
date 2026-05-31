@@ -10,6 +10,7 @@ import { getChats } from "../services/chat.api";
 import { getSocket } from "../services/socket"; 
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import localforage from "localforage"; 
+import { useChat } from "../context/ChatContext";
 
 
 function ChatList() {
@@ -24,6 +25,8 @@ function ChatList() {
   const location = useLocation();
   
   const activeChatRef = useRef(null);
+
+  const { decryptMessagePayload } = useChat();
 
   // Auto-scroll to active chat
   useEffect(() => {
@@ -66,8 +69,23 @@ function ChatList() {
         const data = await getChats();
         const chatsData = Array.isArray(data) ? data : [];
         const broadcastLists = await localforage.getItem("broadcast_lists") || [];
-        setChats([...broadcastLists, ...chatsData]);
-        await localforage.setItem("chats", chatsData);
+        
+        // Decrypt last messages using the chat users for E2EE public keys
+        const decryptedChats = await Promise.all(
+          chatsData.map(async (chat) => {
+            if (chat.lastMessage) {
+              const decryptedLastMsg = await decryptMessagePayload({
+                ...chat.lastMessage,
+                chat: chat
+              });
+              return { ...chat, lastMessage: decryptedLastMsg };
+            }
+            return chat;
+          })
+        );
+
+        setChats([...broadcastLists, ...decryptedChats]);
+        await localforage.setItem("chats", decryptedChats);
       } catch (error) {
         console.error("Error fetching chats:", error);
       } finally {
@@ -80,7 +98,19 @@ function ChatList() {
         const cachedChats = await localforage.getItem("chats");
         const broadcastLists = await localforage.getItem("broadcast_lists") || [];
         if (cachedChats && Array.isArray(cachedChats)) {
-          setChats([...broadcastLists, ...cachedChats]);
+          const decryptedCached = await Promise.all(
+            cachedChats.map(async (chat) => {
+              if (chat.lastMessage) {
+                const decryptedLastMsg = await decryptMessagePayload({
+                  ...chat.lastMessage,
+                  chat: chat
+                });
+                return { ...chat, lastMessage: decryptedLastMsg };
+              }
+              return chat;
+            })
+          );
+          setChats([...broadcastLists, ...decryptedCached]);
           setLoading(false);
         }
       } catch (error) {
@@ -107,7 +137,7 @@ function ChatList() {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [decryptMessagePayload]);
 
   // Sync broadcast lists when modal is closed
   useEffect(() => {
@@ -146,23 +176,24 @@ function ChatList() {
       ? location.pathname.split("/chat/")[1] 
       : null;
 
-    const handleNewMessage = (newMessage) => {
+    const handleNewMessage = async (newMessage) => {
+      const decryptedMsg = await decryptMessagePayload(newMessage);
       setChats((prevChats) => {
-        const chatId = String(newMessage.chat._id || newMessage.chat);
+        const chatId = String(decryptedMsg.chat._id || decryptedMsg.chat);
         const chatExists = prevChats.find((c) => String(c._id) === chatId);
         const isCurrentChat = activeChatId === chatId;
 
         if (chatExists) {
           const updatedChat = { 
             ...chatExists, 
-            lastMessage: newMessage,
+            lastMessage: decryptedMsg,
             unreadCount: isCurrentChat ? 0 : (chatExists.unreadCount || 0) + 1
           };
           return [updatedChat, ...prevChats.filter((c) => String(c._id) !== chatId)];
-        } else if (newMessage.chat && typeof newMessage.chat === "object") {
+        } else if (decryptedMsg.chat && typeof decryptedMsg.chat === "object") {
           const newChat = { 
-            ...newMessage.chat, 
-            lastMessage: newMessage,
+            ...decryptedMsg.chat, 
+            lastMessage: decryptedMsg,
             unreadCount: isCurrentChat ? 0 : 1
           };
           return [newChat, ...prevChats];
@@ -198,7 +229,7 @@ function ChatList() {
       socket.off("kicked_from_group", handleGroupDeletedOrKicked);
       socket.off("chat_terminated", handleGroupDeletedOrKicked);
     };
-  }, [location.pathname]);
+  }, [location.pathname, decryptMessagePayload]);
 
   const handleChatCreated = (newChat) => {
     setChats((prevChats) => {

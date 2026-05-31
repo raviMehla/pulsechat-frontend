@@ -173,20 +173,22 @@ export const ChatProvider = ({ children }) => {
       let otherUserId = null;
       let otherPublicKey = null;
 
-      if (String(senderId) === String(currentUserId)) {
-        // Current user is sender: look up recipient in resolved chat details
-        const chatWithUsers = currentChatObj || (chatObj && typeof chatObj === "object" ? chatObj : null);
-        if (chatWithUsers && chatWithUsers.users) {
-          const otherUser = chatWithUsers.users.find(u => u && String(u._id || u) !== String(currentUserId));
-          if (otherUser) {
-            otherUserId = otherUser._id || otherUser;
-            otherPublicKey = otherUser.e2ee?.publicKey || otherUser.publicKey;
-          }
+      // In 1-on-1 E2EE: we always need the other user's public key to derive the shared key
+      const chatWithUsers = currentChatObj || (chatObj && typeof chatObj === "object" ? chatObj : null);
+      if (chatWithUsers && chatWithUsers.users) {
+        const otherUser = chatWithUsers.users.find(u => u && String(u._id || u) !== String(currentUserId));
+        if (otherUser) {
+          otherUserId = otherUser._id || otherUser;
+          otherPublicKey = otherUser.e2ee?.publicKey || otherUser.publicKey;
         }
-      } else {
-        // Other user is sender
-        otherUserId = senderId;
-        otherPublicKey = msg.sender?.e2ee?.publicKey || msg.sender?.publicKey;
+      }
+
+      // Fallback to msg.sender if chat users list is not populated/available
+      if (!otherUserId || !otherPublicKey) {
+        if (String(senderId) !== String(currentUserId)) {
+          otherUserId = senderId;
+          otherPublicKey = msg.sender?.e2ee?.publicKey || msg.sender?.publicKey;
+        }
       }
 
       if (!otherUserId || !otherPublicKey) {
