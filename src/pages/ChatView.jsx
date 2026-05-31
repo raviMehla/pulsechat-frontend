@@ -89,7 +89,7 @@ function ChatView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const currentUserId = localStorage.getItem("userId");
-  const { setActiveChat, decryptMessagePayload, encryptMessagePayload, encryptGroupMessagePayload } = useChat();
+  const { setActiveChat, setActiveChatDetails, decryptMessagePayload, encryptMessagePayload, encryptGroupMessagePayload } = useChat();
 
   // Local State
   const [messages, setMessages]   = useState([]);
@@ -136,8 +136,9 @@ function ChatView() {
     }
     return () => {
       setActiveChat(null);
+      setActiveChatDetails(null);
     };
-  }, [id, setActiveChat]);
+  }, [id, setActiveChat, setActiveChatDetails]);
 
   // ─────────────────────────────────────────────
   // 1️⃣ Load Initial Data
@@ -312,6 +313,10 @@ function ChatView() {
             ...currentList,
             isBroadcast: true
           });
+          setActiveChatDetails({
+            ...currentList,
+            isBroadcast: true
+          });
           setChatImage(null);
           setIsOtherUserDeleted(false);
           setIsBlockedByMe(false);
@@ -336,6 +341,7 @@ function ChatView() {
           setChatName(currentChat.chatName || "Group");
           setParticipantCount(currentChat.users?.length || 0);
           setActiveChatData(currentChat);
+          setActiveChatDetails(currentChat);
           setChatImage(getAvatarUrl(currentChat.groupAvatar));
           return;
         }
@@ -347,6 +353,7 @@ function ChatView() {
           setChatName("Deleted Account");
           setChatImage(null);
           setActiveChatData(currentChat);
+          setActiveChatDetails(currentChat);
           otherUserIdRef.current = null;
           return;
         }
@@ -355,6 +362,7 @@ function ChatView() {
         otherUserIdRef.current = other._id;
         setChatImage(getAvatarUrl(other.profilePic));
         setActiveChatData(currentChat);
+        setActiveChatDetails(currentChat);
 
         try {
           const myProfile = await getMyProfile();

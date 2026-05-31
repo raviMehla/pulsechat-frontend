@@ -6,6 +6,7 @@ const ChatContext = createContext();
 
 export const ChatProvider = ({ children }) => {
   const [activeChat, setActiveChat] = useState(null);
+  const [activeChatDetails, setActiveChatDetails] = useState(null);
   const [privateKey, setPrivateKey] = useState(null);
   const [e2eeReady, setE2eeReady] = useState(false);
   const keyCacheRef = useRef(new Map());
@@ -65,7 +66,7 @@ export const ChatProvider = ({ children }) => {
       return keyCacheRef.current.get(chatId);
     }
 
-    let fullChat = activeChat;
+    let fullChat = activeChatDetails;
     if (!fullChat || String(fullChat._id) !== chatId) {
       if (chat && typeof chat === "object" && chat.encryptedGroupKeys) {
         fullChat = chat;
@@ -121,11 +122,30 @@ export const ChatProvider = ({ children }) => {
     // Check if the chat is a group chat
     let isGroupChat = false;
     let chatObj = msg.chat;
+
+    // Resolve chat details from fallback cache/API if context details are not set yet
+    let currentChatObj = activeChatDetails;
+    if (!currentChatObj && msg.chat) {
+      const chatIdStr = typeof msg.chat === "object" ? String(msg.chat._id || msg.chat.id) : String(msg.chat);
+      try {
+        const { getChats } = await import("../services/chat.api");
+        const chats = await getChats();
+        if (Array.isArray(chats)) {
+          const found = chats.find(c => String(c._id) === chatIdStr);
+          if (found) {
+            currentChatObj = found;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load chat details for E2EE message decryption fallback:", err);
+      }
+    }
+
     if (chatObj && typeof chatObj === "object") {
       isGroupChat = chatObj.isGroup;
-    } else if (activeChat && String(activeChat._id) === String(msg.chat)) {
-      isGroupChat = activeChat.isGroup;
-      chatObj = activeChat;
+    } else if (currentChatObj && String(currentChatObj._id) === String(msg.chat)) {
+      isGroupChat = currentChatObj.isGroup;
+      chatObj = currentChatObj;
     }
 
     if (isGroupChat) {
@@ -154,9 +174,10 @@ export const ChatProvider = ({ children }) => {
       let otherPublicKey = null;
 
       if (String(senderId) === String(currentUserId)) {
-        // Current user is sender: look up recipient in activeChat users
-        if (activeChat && activeChat.users) {
-          const otherUser = activeChat.users.find(u => u && String(u._id || u) !== String(currentUserId));
+        // Current user is sender: look up recipient in resolved chat details
+        const chatWithUsers = currentChatObj || (chatObj && typeof chatObj === "object" ? chatObj : null);
+        if (chatWithUsers && chatWithUsers.users) {
+          const otherUser = chatWithUsers.users.find(u => u && String(u._id || u) !== String(currentUserId));
           if (otherUser) {
             otherUserId = otherUser._id || otherUser;
             otherPublicKey = otherUser.e2ee?.publicKey || otherUser.publicKey;
@@ -346,6 +367,8 @@ export const ChatProvider = ({ children }) => {
       value={{
         activeChat,
         setActiveChat,
+        activeChatDetails,
+        setActiveChatDetails,
         privateKey,
         setPrivateKey,
         e2eeReady,
