@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import localforage from "localforage";
 import toast from "react-hot-toast";
 import { getAvatarUrl } from "../utils/getAvatarUrl";
+import api from "../services/api";
 
 const GRADIENTS = [
   ["linear-gradient(135deg, #8EC5FC 0%, #E0C3FC 100%)", "#8EC5FC", "#E0C3FC"],
@@ -11,6 +12,46 @@ const GRADIENTS = [
   ["linear-gradient(135deg, #F76B1C 0%, #FAD961 100%)", "#F76B1C", "#FAD961"],
 ];
 
+const INITIAL_MOCK_UPDATES = [
+  {
+    _id: "mock_1",
+    user: {
+      name: "Jane Cooper",
+      username: "janecooper",
+      profilePic: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+    },
+    stories: [
+      { _id: "mock_s1", type: "image", url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800", createdAt: new Date(Date.now() - 3600000).toISOString() },
+      { _id: "mock_s2", type: "text", content: "Loving the beach vibe today! 🏖️✨", gradient: ["linear-gradient(135deg, #f77062 0%, #fe5196 100%)", "#f77062", "#fe5196"], createdAt: new Date(Date.now() - 1800000).toISOString() }
+    ],
+    viewed: false,
+  },
+  {
+    _id: "mock_2",
+    user: {
+      name: "Alex Rivera",
+      username: "alexrivera",
+      profilePic: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+    },
+    stories: [
+      { _id: "mock_s3", type: "image", url: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800", createdAt: new Date(Date.now() - 7200000).toISOString() }
+    ],
+    viewed: false,
+  },
+  {
+    _id: "mock_3",
+    user: {
+      name: "Emma Watson",
+      username: "emmawatson",
+      profilePic: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150",
+    },
+    stories: [
+      { _id: "mock_s4", type: "text", content: '"The only way to do great work is to love what you do." - Steve Jobs 💡', gradient: ["linear-gradient(135deg, #30cfd0 0%, #330867 100%)", "#30cfd0", "#330867"], createdAt: new Date(Date.now() - 14400000).toISOString() }
+    ],
+    viewed: true,
+  }
+];
+
 function Status() {
   const currentUserId = localStorage.getItem("userId");
   const userString = localStorage.getItem("user");
@@ -18,6 +59,8 @@ function Status() {
 
   // Status lists
   const [myStatus, setMyStatus] = useState(null);
+  const [othersUpdates, setOthersUpdates] = useState([]);
+  const [viewedMockStoryIds, setViewedMockStoryIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   
   // Creators
@@ -33,61 +76,67 @@ function Status() {
   const [progress, setProgress] = useState(0); // 0 to 100
   const [isPaused, setIsPaused] = useState(false);
 
-  // Mock Updates
-  const [mockUpdates, setMockUpdates] = useState([
-    {
-      _id: "mock_1",
-      user: {
-        name: "Jane Cooper",
-        username: "janecooper",
-        profilePic: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
-      },
-      stories: [
-        { type: "image", url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800", createdAt: new Date(Date.now() - 3600000).toISOString() },
-        { type: "text", content: "Loving the beach vibe today! 🏖️✨", gradient: ["linear-gradient(135deg, #f77062 0%, #fe5196 100%)", "#f77062", "#fe5196"], createdAt: new Date(Date.now() - 1800000).toISOString() }
-      ],
-      viewed: false,
-    },
-    {
-      _id: "mock_2",
-      user: {
-        name: "Alex Rivera",
-        username: "alexrivera",
-        profilePic: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
-      },
-      stories: [
-        { type: "image", url: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800", createdAt: new Date(Date.now() - 7200000).toISOString() }
-      ],
-      viewed: false,
-    },
-    {
-      _id: "mock_3",
-      user: {
-        name: "Emma Watson",
-        username: "emmawatson",
-        profilePic: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150",
-      },
-      stories: [
-        { type: "text", content: '"The only way to do great work is to love what you do." - Steve Jobs 💡', gradient: ["linear-gradient(135deg, #30cfd0 0%, #330867 100%)", "#30cfd0", "#330867"], createdAt: new Date(Date.now() - 14400000).toISOString() }
-      ],
-      viewed: true,
+  // Load viewed mock story IDs from localforage
+  useEffect(() => {
+    const loadViewedMocks = async () => {
+      try {
+        const stored = await localforage.getItem("viewed_mock_story_ids");
+        if (stored) {
+          setViewedMockStoryIds(stored);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadViewedMocks();
+  }, []);
+
+  const fetchStatuses = async () => {
+    try {
+      const res = await api.get("/status");
+      setMyStatus(res.data.mine || null);
+      
+      const backendOthers = res.data.others || [];
+      
+      const filteredMocks = INITIAL_MOCK_UPDATES.filter(mock => 
+        !backendOthers.some(other => other.user.username === mock.user.username)
+      );
+
+      const processedOthers = [...backendOthers, ...filteredMocks].map(up => {
+        const isMock = String(up._id).startsWith("mock");
+        if (isMock) {
+          const allViewed = up.stories.every(story => 
+            viewedMockStoryIds.includes(story._id)
+          );
+          return { ...up, viewed: allViewed };
+        } else {
+          const allViewed = up.stories.every(story => 
+            story.viewedBy?.some(id => String(id) === String(currentUserId))
+          );
+          return { ...up, viewed: allViewed };
+        }
+      });
+
+      setOthersUpdates(processedOthers);
+    } catch (err) {
+      console.error("Failed to load statuses:", err);
+      // Fallback to mocks if offline/API fails
+      const fallbackOthers = INITIAL_MOCK_UPDATES.map(up => {
+        const allViewed = up.stories.every(story => 
+          viewedMockStoryIds.includes(story._id)
+        );
+        return { ...up, viewed: allViewed };
+      });
+      setOthersUpdates(fallbackOthers);
     }
-  ]);
+  };
 
   // Load user status
   useEffect(() => {
-    const loadMyStatus = async () => {
-      try {
-        const stored = await localforage.getItem(`my_status_${currentUserId}`);
-        if (stored) {
-          setMyStatus(stored);
-        }
-      } catch (err) {
-        console.error("Failed to load status:", err);
-      }
-    };
-    loadMyStatus();
-  }, [currentUserId]);
+    if (currentUserId) {
+      fetchStatuses();
+    }
+  }, [currentUserId, viewedMockStoryIds]);
 
   // Autoplay story viewer logic
   useEffect(() => {
@@ -106,19 +155,58 @@ function Status() {
     return () => clearInterval(interval);
   }, [activeUser, activeStoryIdx, activeStories, isPaused]);
 
+  // Mark active story as viewed
+  useEffect(() => {
+    if (!activeUser || activeStories.length === 0) return;
+    const currentStory = activeStories[activeStoryIdx];
+    if (!currentStory) return;
+
+    const markAsViewed = async () => {
+      const isMock = String(currentStory._id).startsWith("mock");
+      if (isMock) {
+        if (!viewedMockStoryIds.includes(currentStory._id)) {
+          const updated = [...viewedMockStoryIds, currentStory._id];
+          setViewedMockStoryIds(updated);
+          await localforage.setItem("viewed_mock_story_ids", updated);
+        }
+      } else {
+        try {
+          await api.put(`/status/view/${currentStory._id}`);
+          // Update viewedBy array locally to update the border color instantly
+          setOthersUpdates(prev => 
+            prev.map(up => {
+              if (up.user.username === activeUser.username) {
+                const updatedStories = up.stories.map(story => {
+                  if (story._id === currentStory._id) {
+                    const viewedBy = story.viewedBy || [];
+                    if (!viewedBy.includes(currentUserId)) {
+                      return { ...story, viewedBy: [...viewedBy, currentUserId] };
+                    }
+                  }
+                  return story;
+                });
+                const allViewed = updatedStories.every(story => 
+                  story.viewedBy?.some(id => String(id) === String(currentUserId))
+                );
+                return { ...up, stories: updatedStories, viewed: allViewed };
+              }
+              return up;
+            })
+          );
+        } catch (err) {
+          console.error("Failed to mark story as viewed on server:", err);
+        }
+      }
+    };
+
+    markAsViewed();
+  }, [activeUser, activeStoryIdx, activeStories, currentUserId, viewedMockStoryIds]);
+
   const handleNextStory = () => {
     if (activeStoryIdx < activeStories.length - 1) {
       setActiveStoryIdx(prev => prev + 1);
       setProgress(0);
     } else {
-      // End of user's stories, mark viewed and close
-      if (activeUser && activeUser.username !== currentUser?.username) {
-        setMockUpdates(prev => 
-          prev.map(up => 
-            up.user.username === activeUser.username ? { ...up, viewed: true } : up
-          )
-        );
-      }
       closeViewer();
     }
   };
@@ -143,24 +231,19 @@ function Status() {
   const handleTextStatusCreate = async () => {
     if (!statusText.trim()) return;
 
-    const newStory = {
-      type: "text",
-      content: statusText.trim(),
-      gradient: GRADIENTS[activeGradientIdx],
-      createdAt: new Date().toISOString()
-    };
-
-    const updated = myStatus 
-      ? { ...myStatus, stories: [...myStatus.stories, newStory] }
-      : { user: { name: "My Status", profilePic: currentUser?.profilePic }, stories: [newStory] };
-
     try {
-      await localforage.setItem(`my_status_${currentUserId}`, updated);
-      setMyStatus(updated);
+      await api.post("/status", {
+        type: "text",
+        content: statusText.trim(),
+        gradient: GRADIENTS[activeGradientIdx]
+      });
+      
       setStatusText("");
       setShowTextCreator(false);
       toast.success("Text status published!");
+      fetchStatuses();
     } catch (err) {
+      console.error(err);
       toast.error("Failed to publish status");
     }
   };
@@ -174,36 +257,32 @@ function Status() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const newStory = {
-        type: "image",
-        url: reader.result,
-        createdAt: new Date().toISOString()
-      };
+    try {
+      const formData = new FormData();
+      formData.append("type", "image");
+      formData.append("image", file);
 
-      const updated = myStatus 
-        ? { ...myStatus, stories: [...myStatus.stories, newStory] }
-        : { user: { name: "My Status", profilePic: currentUser?.profilePic }, stories: [newStory] };
-
-      try {
-        await localforage.setItem(`my_status_${currentUserId}`, updated);
-        setMyStatus(updated);
-        toast.success("Image status published!");
-      } catch (err) {
-        toast.error("Failed to publish image status");
-      }
-    };
-    reader.readAsDataURL(file);
+      await api.post("/status", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      
+      toast.success("Image status published!");
+      fetchStatuses();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to publish image status");
+    }
   };
 
   const handleClearStatus = async () => {
     if (window.confirm("Delete all your status updates?")) {
       try {
-        await localforage.removeItem(`my_status_${currentUserId}`);
+        await api.delete("/status");
         setMyStatus(null);
         toast.success("Status updates cleared");
+        fetchStatuses();
       } catch (err) {
+        console.error(err);
         toast.error("Failed to clear status");
       }
     }
@@ -218,7 +297,7 @@ function Status() {
     return new Date(isoStr).toLocaleDateString();
   };
 
-  const filteredMocks = mockUpdates.filter(up => 
+  const filteredOthers = othersUpdates.filter(up => 
     up.user.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -321,11 +400,11 @@ function Status() {
           </div>
 
           {/* Recent Updates */}
-          {filteredMocks.filter(u => !u.viewed).length > 0 && (
+          {filteredOthers.filter(u => !u.viewed).length > 0 && (
             <div>
               <h2 className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3">Recent Updates</h2>
               <div className="space-y-3">
-                {filteredMocks.filter(u => !u.viewed).map((item) => (
+                {filteredOthers.filter(u => !u.viewed).map((item) => (
                   <div 
                     key={item._id}
                     onClick={() => {
@@ -338,7 +417,7 @@ function Status() {
                   >
                     <div className="relative w-12 h-12 flex-shrink-0">
                       <img 
-                        src={item.user.profilePic} 
+                        src={getAvatarUrl(item.user.profilePic)} 
                         alt={item.user.name} 
                         className="w-full h-full rounded-full object-cover border border-white/10" 
                       />
@@ -357,11 +436,11 @@ function Status() {
           )}
 
           {/* Viewed Updates */}
-          {filteredMocks.filter(u => u.viewed).length > 0 && (
+          {filteredOthers.filter(u => u.viewed).length > 0 && (
             <div>
               <h2 className="text-xs font-semibold text-textMuted uppercase tracking-wider mb-3">Viewed Updates</h2>
               <div className="space-y-3">
-                {filteredMocks.filter(u => u.viewed).map((item) => (
+                {filteredOthers.filter(u => u.viewed).map((item) => (
                   <div 
                     key={item._id}
                     onClick={() => {
@@ -374,7 +453,7 @@ function Status() {
                   >
                     <div className="relative w-12 h-12 flex-shrink-0">
                       <img 
-                        src={item.user.profilePic} 
+                        src={getAvatarUrl(item.user.profilePic)} 
                         alt={item.user.name} 
                         className="w-full h-full rounded-full object-cover border border-white/10" 
                       />
