@@ -27,12 +27,12 @@ function SearchUserModal({ isOpen, onClose, onChatCreated }) {
   };
 
   const handleShareInvite = () => {
-    const inviteMessage = `Hey, join me on PulseChat! It's a secure real-time messaging app. Register here: ${window.location.origin}/signup`;
+    const inviteMessage = `Hey, join me on PulseChat! It's a secure real-time messaging app. Register here: https://go-pulsechat.vercel.app/landing`;
     if (navigator.share) {
       navigator.share({
         title: 'Join PulseChat',
         text: inviteMessage,
-        url: `${window.location.origin}/signup`
+        url: `https://go-pulsechat.vercel.app/landing`
       }).then(() => {
         toast.success("Shared invitation!");
       }).catch((err) => {
