@@ -14,7 +14,8 @@ function MessageBubble({
   onRetry,
   onEdit,
   onPin,
-  onStar
+  onStar,
+  onForward
 }) {
   const senderId = msg.sender?._id || msg.sender;
   const isOwnMessage = String(senderId) === String(currentUserId);
@@ -152,6 +153,7 @@ function MessageBubble({
         <div className={`absolute bottom-0 hidden group-hover:flex items-center ${isOwnMessage ? "right-full pr-1" : "left-full pl-1"}`}>
           {!isOwnMessage ? (
             <>
+              <button onClick={() => onForward && onForward(msg)} className="w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform text-textMuted hover:text-accent" title="Forward">➡️</button>
               <button onClick={() => onStar(msg._id)} className={`w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform ${isStarredByUser ? "text-yellow-400" : "text-textMuted hover:text-yellow-400"}`} title={isStarredByUser ? "Unstar" : "Star"}>⭐</button>
               <button onClick={() => onPin(msg._id)} className={`w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform ${msg.isPinned ? "text-accent" : "text-textMuted hover:text-accent"}`} title={msg.isPinned ? "Unpin" : "Pin"}>📌</button>
               <button onClick={() => setShowPicker(!showPicker)} className="w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform text-textMuted hover:text-accent" title="React">🙂</button>
@@ -166,6 +168,7 @@ function MessageBubble({
               )}
               <button onClick={() => onPin(msg._id)} className={`w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform ${msg.isPinned ? "text-accent" : "text-textMuted hover:text-accent"}`} title={msg.isPinned ? "Unpin" : "Pin"}>📌</button>
               <button onClick={() => onStar(msg._id)} className={`w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform ${isStarredByUser ? "text-yellow-400" : "text-textMuted hover:text-yellow-400"}`} title={isStarredByUser ? "Unstar" : "Star"}>⭐</button>
+              <button onClick={() => onForward && onForward(msg)} className="w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform text-textMuted hover:text-accent" title="Forward">➡️</button>
               <button onClick={handleDeleteClick} className="w-8 h-8 flex items-center justify-center text-xs hover:scale-125 transition-transform text-textMuted hover:text-danger" title="Delete">🗑️</button>
             </>
           )}
@@ -193,6 +196,13 @@ function MessageBubble({
         >
           <div className="flex flex-col pointer-events-none"> {/* Prevent drag interference */}
             
+            {msg.isForwarded && (
+              <div className="flex items-center gap-1 mb-1 text-[10px] italic opacity-75">
+                <span>↪</span>
+                <span>Forwarded</span>
+              </div>
+            )}
+
             {msg.replyTo && (
               <div className="bg-black/10 rounded p-2 mb-2 text-xs border-l-4 border-white/40 opacity-90">
                 <span className="font-bold block mb-0.5">

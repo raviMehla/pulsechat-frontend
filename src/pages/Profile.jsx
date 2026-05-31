@@ -133,6 +133,17 @@ function Profile() {
 
   const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "" });
 
+  const newPassword = passwords.newPassword || "";
+  const checks = {
+    length: newPassword.length >= 8,
+    hasUpper: /[A-Z]/.test(newPassword),
+    hasLower: /[a-z]/.test(newPassword),
+    hasDigit: /[0-9]/.test(newPassword),
+    hasSpecial: /[^A-Za-z0-9]/.test(newPassword)
+  };
+  const passedCount = Object.values(checks).filter(Boolean).length;
+  const allChecksPassed = Object.values(checks).every(Boolean);
+
   // Image Upload States
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(getAvatarUrl(initialUser.profilePic));
@@ -222,6 +233,10 @@ function Profile() {
 
   const handlePasswordUpdate = async (e) => {
     e.preventDefault();
+    if (!allChecksPassed) {
+      toast.error("Please meet all password strength requirements.");
+      return;
+    }
     setIsLoading(true);
     try {
       const resData = await updatePassword(passwords);
@@ -557,16 +572,123 @@ function Profile() {
                     value={passwords.currentPassword}
                     onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
                   />
-                  <Input
-                    label="New Password"
-                    type="password"
-                    placeholder="Min. 6 characters"
-                    required
-                    value={passwords.newPassword}
-                    onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
-                  />
+                  <div>
+                    <Input
+                      label="New Password"
+                      type="password"
+                      placeholder="Enter new strong password"
+                      required
+                      value={passwords.newPassword}
+                      onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
+                    />
+                    
+                    {/* Password Strength Meter */}
+                    {newPassword.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {/* Segmented Strength Bar */}
+                        <div className="flex gap-1.5 h-1.5 w-full bg-background/50 rounded-full overflow-hidden">
+                          {[1, 2, 3, 4, 5].map((level) => {
+                            let bgClass = "bg-gray-850";
+                            if (level <= passedCount) {
+                              if (passedCount <= 2) bgClass = "bg-danger"; // Red
+                              else if (passedCount === 3) bgClass = "bg-yellow-500"; // Yellow
+                              else if (passedCount === 4) bgClass = "bg-accent"; // Indigo
+                              else bgClass = "bg-emerald-500"; // Emerald/Green
+                            }
+                            return (
+                              <div
+                                key={level}
+                                className={`flex-1 h-full rounded-full transition-all duration-300 ${bgClass}`}
+                              />
+                            );
+                          })}
+                        </div>
+                        
+                        {/* Strength Label */}
+                        <div className="flex justify-between items-center text-[11px] mt-1">
+                          <span className="text-textMuted">Password Strength:</span>
+                          <span className={
+                            passedCount <= 2 ? "text-danger font-semibold animate-pulse" :
+                            passedCount === 3 ? "text-yellow-500 font-semibold" :
+                            passedCount === 4 ? "text-accent font-semibold" :
+                            "text-emerald-500 font-semibold"
+                          }>
+                            {passedCount <= 2 ? "Weak" :
+                             passedCount === 3 ? "Fair" :
+                             passedCount === 4 ? "Good" :
+                             "Strong"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Requirements Validation Checklist */}
+                    <div className="mt-4 space-y-2 text-xs text-textMuted bg-background/30 border border-borderSubtle/30 rounded-xl p-3">
+                      <p className="font-semibold text-textPrimary mb-1">Password Requirements:</p>
+                      
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors ${
+                          checks.length ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30" : "bg-gray-800 text-gray-500 border border-gray-700"
+                        }`}>
+                          {checks.length ? "✓" : "✗"}
+                        </div>
+                        <span className={checks.length ? "text-emerald-400 font-medium" : "text-textMuted"}>
+                          At least 8 characters
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors ${
+                          checks.hasUpper ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30" : "bg-gray-800 text-gray-500 border border-gray-700"
+                        }`}>
+                          {checks.hasUpper ? "✓" : "✗"}
+                        </div>
+                        <span className={checks.hasUpper ? "text-emerald-400 font-medium" : "text-textMuted"}>
+                          An uppercase letter (A-Z)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors ${
+                          checks.hasLower ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30" : "bg-gray-800 text-gray-500 border border-gray-700"
+                        }`}>
+                          {checks.hasLower ? "✓" : "✗"}
+                        </div>
+                        <span className={checks.hasLower ? "text-emerald-400 font-medium" : "text-textMuted"}>
+                          A lowercase letter (a-z)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors ${
+                          checks.hasDigit ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30" : "bg-gray-800 text-gray-500 border border-gray-700"
+                        }`}>
+                          {checks.hasDigit ? "✓" : "✗"}
+                        </div>
+                        <span className={checks.hasDigit ? "text-emerald-400 font-medium" : "text-textMuted"}>
+                          A number (0-9)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors ${
+                          checks.hasSpecial ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30" : "bg-gray-800 text-gray-500 border border-gray-700"
+                        }`}>
+                          {checks.hasSpecial ? "✓" : "✗"}
+                        </div>
+                        <span className={checks.hasSpecial ? "text-emerald-400 font-medium" : "text-textMuted"}>
+                          A special character (e.g. ! @ # $ % & *)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div className="pt-1">
-                    <Button type="submit" variant="outline" disabled={isLoading}>
+                    <Button 
+                      type="submit" 
+                      variant="outline" 
+                      disabled={isLoading || !allChecksPassed || !passwords.currentPassword}
+                    >
                       {isLoading ? "Updating…" : "Update Password"}
                     </Button>
                   </div>

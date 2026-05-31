@@ -35,6 +35,7 @@ import MessageBubble from "../components/chat/MessageBubble";
 import MessageInput from "../components/chat/MessageInput";
 import MessageSearch from "../components/chat/MessageSearch";
 import GroupInfoModal from "../components/chat/GroupInfoModal";
+import ForwardMessageModal from "../components/chat/ForwardMessageModal";
 import { Virtuoso } from "react-virtuoso";
 
 // Helper for client-side image compression
@@ -120,6 +121,7 @@ function ChatView() {
   const uploadAbortControllerRef = useRef(null);
   const [chatImage, setChatImage] = useState(null);
   const [isUserInfoOpen, setIsUserInfoOpen] = useState(false);
+  const [forwardingMessage, setForwardingMessage] = useState(null);
   const { startCall } = useCall();
 
   const otherUserIdRef = useRef(null);
@@ -791,6 +793,33 @@ function ChatView() {
     }
   };
 
+  const handleForwardConfirm = async (targetChatIds, msg) => {
+    try {
+      for (const targetChatId of targetChatIds) {
+        const payload = {
+          chatId: targetChatId,
+          content: msg.content,
+          messageType: msg.messageType || "text",
+          fileUrl: msg.fileUrl || null,
+          fileName: msg.fileName || null,
+          duration: msg.duration || null,
+          isForwarded: true
+        };
+        const sentData = await sendMessage(payload);
+
+        // If current active chat, append it to messages list
+        if (String(targetChatId) === String(id)) {
+          setMessages(prev => [...prev, sentData]);
+        }
+      }
+      toast.success("Message forwarded successfully");
+    } catch (err) {
+      console.error("Error forwarding message:", err);
+      toast.error("Failed to forward message");
+      throw err;
+    }
+  };
+
 
   const handleJumpToMessage = async (targetMessage) => {
     const element = document.getElementById(`msg-${targetMessage._id}`);
@@ -1004,6 +1033,7 @@ function ChatView() {
                       onEdit={handleEditMessage}
                       onPin={handlePinMessage}
                       onStar={handleStarMessage}
+                      onForward={setForwardingMessage}
                     />
                   </div>
                 );
@@ -1102,6 +1132,13 @@ function ChatView() {
         isBlockedByMe={isBlockedByMe}
         onToggleBlock={handleToggleBlock}
         onDeleteChat={handleDeleteChat}
+      />
+
+      <ForwardMessageModal
+        isOpen={!!forwardingMessage}
+        message={forwardingMessage}
+        onClose={() => setForwardingMessage(null)}
+        onForwardConfirm={handleForwardConfirm}
       />
 
       <ConfirmDialog {...confirmState} onClose={closeConfirm} />

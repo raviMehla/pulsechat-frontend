@@ -32,6 +32,7 @@ const lazyWithRetry = (componentImport) => {
 const ChatView = lazyWithRetry(() => import("./pages/ChatView"));
 const Profile = lazyWithRetry(() => import("./pages/Profile"));
 const Settings = lazyWithRetry(() => import("./pages/Settings"));
+const Status = lazyWithRetry(() => import("./pages/Status"));
 const Login = lazyWithRetry(() => import("./pages/Login"));
 const Register = lazyWithRetry(() => import("./pages/Register")); 
 const Welcome = lazyWithRetry(() => import("./pages/Welcome"));   
@@ -260,6 +261,7 @@ function App() {
         <Route path="chat/:id" element={<ChatView />} />
         <Route path="profile" element={<Profile />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="status" element={<Status />} />
       </Route>
 
       {/* Global Fallback: Catch-all 404 redirects safely to the platform root */}
