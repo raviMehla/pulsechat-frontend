@@ -11,6 +11,7 @@ function AppLayout() {
   usePushNotifications(currentUserId);
 
   const isRouteActive = location.pathname !== "/";
+  const isChatRoute = location.pathname === "/" || location.pathname.startsWith("/chat");
 
   return (
     // 🛡️ ARCHITECTURAL UPGRADE: h-[100dvh] fixes the mobile browser URL bar bug!
@@ -21,14 +22,14 @@ function AppLayout() {
       
       {/* 2. Middle Panel (Chat List) */}
       <div className={`w-full md:w-[350px] lg:w-[400px] flex-shrink-0 border-r border-borderSubtle bg-surface flex flex-col z-10 shadow-lg ${
-        isRouteActive ? "hidden md:flex" : "flex"
+        isChatRoute ? (isRouteActive ? "hidden md:flex" : "flex") : "hidden"
       } h-[calc(100dvh-60px)] md:h-full`}>
         <ChatList />
       </div>
 
       {/* 3. Right Main Content Area (Outlet) */}
-      <main className={`flex-grow md:flex-grow-0 md:flex-1 flex flex-col min-w-0 h-[calc(100dvh-60px)] md:h-full relative bg-background ${
-        !isRouteActive ? "hidden md:flex" : "flex"
+      <main className={`flex-1 flex flex-col min-w-0 h-[calc(100dvh-60px)] md:h-full relative bg-background ${
+        isChatRoute ? (!isRouteActive ? "hidden md:flex" : "flex") : "flex"
       }`}>
         <AnimatePresence mode="wait">
           <motion.div

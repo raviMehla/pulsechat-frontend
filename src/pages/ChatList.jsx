@@ -230,16 +230,6 @@ function ChatList() {
   return (
     <div className="h-full flex flex-col relative bg-surface border-r border-borderSubtle">
       
-      {/* 🛡️ ARCHITECTURAL UPGRADE: Native Mobile App Header */}
-      <div className="md:hidden flex items-center justify-between px-6 py-4 bg-background border-b border-borderSubtle z-20 shadow-sm">
-        <h1 className="text-xl font-bold text-textPrimary tracking-tight flex items-center gap-3">
-          <div className="w-8 h-8 bg-accent text-white rounded-lg flex items-center justify-center font-bold shadow-md">
-            P
-          </div>
-          PulseChat
-        </h1>
-      </div>
-
       <ChatListHeader 
         onOpenGroupModal={() => setIsGroupModalOpen(true)} 
         onOpenSearchModal={() => setIsSearchModalOpen(true)} 
