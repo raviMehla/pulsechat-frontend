@@ -121,10 +121,15 @@ function Profile() {
   // Form States
   const [formData, setFormData] = useState({ 
     name: initialUser.name || "", 
-    bio: initialUser.bio || "" 
+    bio: initialUser.bio || "",
+    phone: initialUser.phone || ""
   });
   // Draft — holds in-progress edits separately, reverts on cancel
-  const [draftData, setDraftData] = useState({ name: initialUser.name || "", bio: initialUser.bio || "" });
+  const [draftData, setDraftData] = useState({ 
+    name: initialUser.name || "", 
+    bio: initialUser.bio || "",
+    phone: initialUser.phone || ""
+  });
 
   const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "" });
 
@@ -141,7 +146,8 @@ function Profile() {
         localStorage.setItem("user", JSON.stringify(freshUser));
         const newFormData = {
           name: freshUser.name || "",
-          bio: freshUser.bio || ""
+          bio: freshUser.bio || "",
+          phone: freshUser.phone || ""
         };
         setFormData(newFormData);
         setDraftData(newFormData);
@@ -185,6 +191,7 @@ function Profile() {
       const submitData = new FormData();
       submitData.append("name", draftData.name);
       submitData.append("bio", draftData.bio);
+      submitData.append("phone", draftData.phone);
       if (selectedFile) {
         submitData.append("profilePic", selectedFile);
       }
@@ -194,7 +201,11 @@ function Profile() {
       const updatedUser = resData.user || resData;
       localStorage.setItem("user", JSON.stringify(updatedUser));
       setUser(updatedUser);
-      const newFormData = { name: updatedUser.name || "", bio: updatedUser.bio || "" };
+      const newFormData = { 
+        name: updatedUser.name || "", 
+        bio: updatedUser.bio || "",
+        phone: updatedUser.phone || ""
+      };
       setFormData(newFormData);
       setDraftData(newFormData);
       setSelectedFile(null);
@@ -464,7 +475,7 @@ function Profile() {
                         <InfoRow label="Display Name" value={formData.name} />
                         <InfoRow label="Username" value={user?.username ? `@${user.username}` : null} locked />
                         <InfoRow label="Email Address" value={user?.email} locked />
-                        <InfoRow label="Phone Number" value={user?.phone} locked />
+                        <InfoRow label="Phone Number" value={formData.phone} />
                         <InfoRow label="Bio" value={formData.bio || "No bio set yet."} />
                       </motion.div>
                     ) : (
@@ -487,7 +498,12 @@ function Profile() {
                           />
                           <Input label="Username (Immutable)" value={user?.username} disabled />
                           <Input label="Email Address" type="email" value={user?.email} disabled />
-                          <Input label="Phone Number" value={user?.phone || "Not provided"} disabled />
+                          <Input 
+                            label="Phone Number" 
+                            value={draftData.phone} 
+                            onChange={(e) => setDraftData({ ...draftData, phone: e.target.value })}
+                            placeholder="e.g. +1234567890"
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-xs font-semibold uppercase tracking-[0.07em] text-textMuted">Bio</label>

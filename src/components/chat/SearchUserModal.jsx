@@ -9,7 +9,40 @@ function SearchUserModal({ isOpen, onClose, onChatCreated }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
   const navigate = useNavigate();
+
+  const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(searchQuery.trim());
+
+  const handleInviteEmail = async () => {
+    try {
+      setIsInviting(true);
+      await api.post("/users/invite", { email: searchQuery.trim() });
+      toast.success(`Invitation email sent to ${searchQuery.trim()}!`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to send invitation");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const handleShareInvite = () => {
+    const inviteMessage = `Hey, join me on PulseChat! It's a secure real-time messaging app. Register here: ${window.location.origin}/signup`;
+    if (navigator.share) {
+      navigator.share({
+        title: 'Join PulseChat',
+        text: inviteMessage,
+        url: `${window.location.origin}/signup`
+      }).then(() => {
+        toast.success("Shared invitation!");
+      }).catch((err) => {
+        console.log("Error sharing:", err);
+      });
+    } else {
+      navigator.clipboard.writeText(inviteMessage);
+      toast.success("Invitation link copied to clipboard!");
+    }
+  };
 
   // Escape key light-dismiss
   useKeyboardShortcuts([
@@ -80,7 +113,24 @@ function SearchUserModal({ isOpen, onClose, onChatCreated }) {
 
         <div className="max-h-60 overflow-y-auto bg-surface border border-gray-800 rounded-md shadow-inner">
           {searchResults.length === 0 && searchQuery && !isSearching && (
-             <p className="p-4 text-center text-sm text-gray-500">No users found.</p>
+             <div className="p-4 text-center">
+               <p className="text-sm text-gray-500 mb-3">No users found.</p>
+               {isEmail && (
+                 <button
+                   onClick={handleInviteEmail}
+                   disabled={isInviting}
+                   className="w-full bg-accent/20 hover:bg-accent/30 text-accent font-semibold py-2 px-4 rounded-md text-xs border border-accent/30 transition-colors mb-2 disabled:opacity-50"
+                 >
+                   {isInviting ? "Sending Invite..." : `Invite ${searchQuery.trim()} via Email`}
+                 </button>
+               )}
+               <button
+                 onClick={handleShareInvite}
+                 className="w-full bg-gray-800 hover:bg-gray-700 text-textPrimary font-semibold py-2 px-4 rounded-md text-xs border border-gray-700 transition-colors"
+               >
+                 Share Invite Link
+               </button>
+             </div>
           )}
           {searchResults.map((user) => (
             <div 
