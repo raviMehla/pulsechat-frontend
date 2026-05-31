@@ -305,7 +305,9 @@ function Status() {
     <div className="h-full w-full flex flex-col md:flex-row bg-background text-textPrimary overflow-hidden">
       
       {/* LEFT SIDEBAR PANEL: Status list */}
-      <div className="w-full md:w-[350px] lg:w-[400px] border-r border-borderSubtle bg-surface flex flex-col h-full z-10 shadow-lg">
+      <div className={`w-full md:w-[350px] lg:w-[400px] border-r border-borderSubtle bg-surface flex-col h-full z-10 shadow-lg ${
+        activeUser ? "hidden md:flex" : "flex"
+      }`}>
         {/* Header */}
         <div className="p-6 border-b border-borderSubtle/60 flex items-center justify-between flex-shrink-0">
           <h1 className="text-2xl font-bold tracking-tight">Status</h1>
@@ -474,11 +476,13 @@ function Status() {
       </div>
 
       {/* RIGHT SIDE MAIN VIEW: Display active story or welcome page */}
-      <div className="flex-1 h-full relative bg-bg flex flex-col items-center justify-center min-w-0">
+      <div className={`flex-1 h-full relative bg-bg flex-col items-center justify-center min-w-0 ${
+        !activeUser ? "hidden md:flex" : "flex"
+      }`}>
         
         {activeUser ? (
           /* ACTIVE STORIES VIEWER */
-          <div className="w-full max-w-lg h-full max-h-[85vh] md:max-h-[90vh] bg-black md:rounded-2xl border border-gray-800 shadow-2xl relative overflow-hidden flex flex-col justify-between p-4 z-20">
+          <div className="w-full max-w-lg h-full md:max-h-[90vh] bg-black md:rounded-2xl border border-gray-800 shadow-2xl relative overflow-hidden flex flex-col justify-between p-4 z-20">
             
             {/* Playback Progress Segmented Bars */}
             <div className="flex gap-1.5 w-full mb-4 z-30">

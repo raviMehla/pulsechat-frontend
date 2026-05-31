@@ -54,11 +54,13 @@ function Sidebar() {
           </svg>
         </NavLink>
 
-        <NavLink to="/profile" className={navClass} title="Profile">
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-        </NavLink>
+        <div className="hidden md:block">
+          <NavLink to="/profile" className={navClass} title="Profile">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </NavLink>
+        </div>
 
         <NavLink to="/status" className={navClass} title="Status">
           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
@@ -77,13 +79,15 @@ function Sidebar() {
           </svg>
         </NavLink>
 
-        <button 
-          onClick={() => setIsStarredOpen(true)}
-          className="p-3 rounded-xl text-textMuted hover:bg-background hover:text-yellow-400 transition-all flex items-center justify-center relative group"
-          title="Starred Messages"
-        >
-          <span className="text-xl group-hover:scale-125 transition-transform">⭐</span>
-        </button>
+        <div className="hidden md:block">
+          <button 
+            onClick={() => setIsStarredOpen(true)}
+            className="p-3 rounded-xl text-textMuted hover:bg-background hover:text-yellow-400 transition-all flex items-center justify-center relative group"
+            title="Starred Messages"
+          >
+            <span className="text-xl group-hover:scale-125 transition-transform">⭐</span>
+          </button>
+        </div>
 
         <button 
           onClick={() => setIsCallsOpen(true)}
@@ -95,7 +99,7 @@ function Sidebar() {
       </div>
 
       {/* Bottom Section (Desktop) / Right Section (Mobile) */}
-      <div className="flex md:flex-col items-center gap-2 md:gap-4">
+      <div className="hidden md:flex md:flex-col items-center gap-2 md:gap-4">
         <button 
           onClick={handleLogout}
           className="p-3 rounded-xl text-textMuted hover:bg-danger/10 hover:text-danger transition-all"

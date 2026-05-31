@@ -13,6 +13,9 @@ import { requestDataBackup, requestDeletionOtp, deleteAccount } from "../service
 // 🟢 UI Primitives
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
+import { getAvatarUrl } from "../utils/getAvatarUrl";
+import StarredMessagesModal from "../components/chat/StarredMessagesModal";
+import CallHistoryModal from "../components/chat/CallHistoryModal";
 
 /* ─────────────────────────────────────────────
    ICON PRIMITIVES
@@ -136,6 +139,28 @@ function SettingsCard({ icon, iconBg, title, description, badge, children, defau
 function Settings() {
   const navigate = useNavigate();
   const { confirmState, confirm, close: closeConfirm } = useConfirm();
+
+  const userString = localStorage.getItem("user");
+  const user = userString ? JSON.parse(userString) : null;
+
+  const [isStarredOpen, setIsStarredOpen] = useState(false);
+  const [isCallsOpen, setIsCallsOpen] = useState(false);
+
+  const handleLogout = () => {
+    confirm({
+      title: "Log Out",
+      message: "Are you sure you want to log out of this device?",
+      confirmText: "Log Out",
+      cancelText: "Cancel",
+      variant: "danger",
+      onConfirm: () => {
+        disconnectSocket();
+        localStorage.clear();
+        sessionStorage.clear();
+        navigate("/login");
+      }
+    });
+  };
 
   // Loading States
   const [isExporting, setIsExporting] = useState(false);
@@ -306,6 +331,25 @@ function Settings() {
       {/* ── SETTINGS CARDS ── */}
       <div className="max-w-3xl w-full mx-auto px-6 lg:px-10 py-6 flex-1 space-y-4">
 
+        {/* Profile Card Quick Link */}
+        {user && (
+          <div 
+            onClick={() => navigate("/profile")}
+            className="bg-surface rounded-2xl border border-borderSubtle overflow-hidden p-5 flex items-center gap-4 cursor-pointer hover:bg-white/[0.02] transition-all hover:scale-[1.01] shadow-lg"
+          >
+            <img 
+              src={getAvatarUrl(user.profilePic)} 
+              alt={user.name || "User"} 
+              className="w-12 h-12 rounded-full object-cover border border-white/10" 
+            />
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-textPrimary truncate">{user.name || "User"}</h3>
+              <p className="text-xs text-textMuted mt-1 truncate">{user.bio || "No bio yet"}</p>
+            </div>
+            <span className="text-textMuted text-lg hover:translate-x-1 transition-transform">➡️</span>
+          </div>
+        )}
+
         {/* Session Management */}
         <SettingsCard
           icon={<ShieldIcon />}
@@ -408,6 +452,51 @@ function Settings() {
           </form>
         </SettingsCard>
 
+        {/* Starred Messages Card (Mobile Specific / General Hub) */}
+        <SettingsCard
+          icon="⭐"
+          iconBg="rgba(234,179,8,0.15)"
+          title="Starred Messages"
+          description="View all messages you've marked as important"
+          defaultOpen={false}
+        >
+          <p className="text-xs text-textMuted mb-4">
+            Browse and search your bookmarked/starred messages across all conversation rooms. Clicking a starred message will navigate you back to that chat context.
+          </p>
+          <Button onClick={() => setIsStarredOpen(true)} variant="outline">
+            View Starred Messages
+          </Button>
+        </SettingsCard>
+
+        {/* Call History Card (Mobile Specific / General Hub) */}
+        <SettingsCard
+          icon="📞"
+          iconBg="rgba(124,110,247,0.15)"
+          title="Call History Logs"
+          description="View incoming, outgoing, and missed call logs"
+          defaultOpen={false}
+        >
+          <p className="text-xs text-textMuted mb-4">
+            Check your recent voice and video call logs. You can redial any user directly from your call history log.
+          </p>
+          <Button onClick={() => setIsCallsOpen(true)} variant="outline">
+            Open Call Logs
+          </Button>
+        </SettingsCard>
+
+        {/* Logout Card */}
+        <div
+          className="rounded-2xl border border-danger/25 bg-surface overflow-hidden p-5 flex items-center justify-between shadow-lg"
+        >
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-semibold text-danger">Log Out</span>
+            <p className="text-xs text-textMuted mt-0.5">Disconnect from this device</p>
+          </div>
+          <Button onClick={handleLogout} variant="danger">
+            Log Out
+          </Button>
+        </div>
+
         {/* Danger Zone */}
         <div
           className="rounded-2xl border border-danger/25 overflow-hidden"
@@ -483,6 +572,19 @@ function Settings() {
           </div>
         </div>
       </div>
+
+      <StarredMessagesModal 
+        isOpen={isStarredOpen}
+        onClose={() => setIsStarredOpen(false)}
+        onStarredMessageClick={(chatId, msg) => {
+          navigate(`/chat/${chatId}?jumpTo=${msg._id}`);
+        }}
+      />
+      
+      <CallHistoryModal 
+        isOpen={isCallsOpen}
+        onClose={() => setIsCallsOpen(false)}
+      />
 
       <ConfirmDialog {...confirmState} onClose={closeConfirm} />
     </div>

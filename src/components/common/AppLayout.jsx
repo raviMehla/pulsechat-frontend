@@ -20,14 +20,14 @@ function AppLayout() {
       <Sidebar />
       
       {/* 2. Middle Panel (Chat List) */}
-      <div className={`w-full md:w-[350px] lg:w-[400px] flex-shrink-0 border-r border-borderSubtle bg-surface flex-col z-10 shadow-lg ${
+      <div className={`w-full md:w-[350px] lg:w-[400px] flex-shrink-0 border-r border-borderSubtle bg-surface flex flex-col z-10 shadow-lg ${
         isRouteActive ? "hidden md:flex" : "flex"
-      } h-full`}>
+      } h-[calc(100dvh-60px)] md:h-full`}>
         <ChatList />
       </div>
 
       {/* 3. Right Main Content Area (Outlet) */}
-      <main className={`flex-1 flex-col min-w-0 h-full relative bg-background ${
+      <main className={`flex-grow md:flex-grow-0 md:flex-1 flex flex-col min-w-0 h-[calc(100dvh-60px)] md:h-full relative bg-background ${
         !isRouteActive ? "hidden md:flex" : "flex"
       }`}>
         <AnimatePresence mode="wait">
