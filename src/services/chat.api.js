@@ -33,7 +33,7 @@ export const accessChat = async (userId) => {
 // React components can stop loading spinners or keep modals open.
 // ==========================================
 
-export const createGroupChat = async (name, users, groupAvatarFile, description = "") => {
+export const createGroupChat = async (name, users, groupAvatarFile, description = "", encryptedGroupKeys = null) => {
   try {
     if (groupAvatarFile) {
       const formData = new FormData();
@@ -41,13 +41,14 @@ export const createGroupChat = async (name, users, groupAvatarFile, description 
       formData.append("users", JSON.stringify(users));
       formData.append("groupAvatar", groupAvatarFile);
       if (description) formData.append("description", description);
+      if (encryptedGroupKeys) formData.append("encryptedGroupKeys", JSON.stringify(encryptedGroupKeys));
       
       const res = await api.post("/chat/group", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
       return res.data;
     } else {
-      const res = await api.post("/chat/group", { name, users, description });
+      const res = await api.post("/chat/group", { name, users, description, encryptedGroupKeys });
       return res.data;
     }
   } catch (error) {
@@ -92,9 +93,9 @@ export const renameGroupChat = async (chatId, newName) => {
   }
 };
 
-export const addUserToGroup = async (chatId, userId) => {
+export const addUserToGroup = async (chatId, userId, encryptedKey = null, iv = null, keyVersion = null) => {
   try {
-    const res = await api.put("/chat/group/add", { chatId, userId });
+    const res = await api.put("/chat/group/add", { chatId, userId, encryptedKey, iv, keyVersion });
     return res.data;
   } catch (error) {
     console.error("Failed to add user to group API:", error);
@@ -128,6 +129,16 @@ export const deleteChat = async (chatId) => {
     return res.data;
   } catch (error) {
     console.error("Failed to delete chat API:", error);
+    throw error;
+  }
+};
+
+export const rotateGroupKeys = async (chatId, encryptedGroupKeys) => {
+  try {
+    const res = await api.put(`/chat/group/${chatId}/keys/rotate`, { encryptedGroupKeys });
+    return res.data;
+  } catch (error) {
+    console.error("Failed to rotate group keys API:", error);
     throw error;
   }
 };

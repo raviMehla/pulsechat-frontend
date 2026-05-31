@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "../services/api";
+import { fetchSalts } from "../services/auth.api";
+import { deriveFromPassword, decryptPrivateKeyFromBackup } from "../services/crypto";
+import { storePrivateKey, getPrivateKey } from "../services/keystore";
 
 // 🟢 Utilizing our standardized UI Primitives
 import { Button } from "../components/ui/Button";
@@ -24,7 +27,19 @@ function Login() {
 
     try {
       setIsLoading(true);
-      const response = await api.post("/auth/login", formData);
+
+      // 1. Fetch key derivation salts for this identifier
+      const saltsRes = await fetchSalts(formData.identifier);
+      const { authSalt, keySalt } = saltsRes;
+
+      // 2. Derive KEK and Auth Token from password
+      const { authToken, kek } = await deriveFromPassword(formData.password, authSalt, keySalt);
+
+      // 3. Submit login request with authToken
+      const response = await api.post("/auth/login", {
+        identifier: formData.identifier,
+        authToken
+      });
       
       const token = response.data.token;
       const userPayload = response.data.user || response.data;
@@ -34,6 +49,25 @@ function Login() {
 
       if (!rawUserId || !token) {
         throw new Error("Malformed authentication payload from server");
+      }
+
+      // 4. Decrypt and restore ECDH private key from server-side backup if not present locally
+      const e2eePayload = response.data.e2ee || userPayload.e2ee;
+      if (e2eePayload && e2eePayload.publicKey && e2eePayload.encryptedPrivateKey) {
+        const localKeyRecord = await getPrivateKey(String(rawUserId));
+        if (!localKeyRecord) {
+          try {
+            const restoredPrivateKey = await decryptPrivateKeyFromBackup(
+              e2eePayload.encryptedPrivateKey,
+              kek,
+              e2eePayload.keyIv
+            );
+            await storePrivateKey(String(rawUserId), restoredPrivateKey, e2eePayload.publicKey);
+          } catch (decryptErr) {
+            console.error("Failed to decrypt backed-up private key:", decryptErr);
+            toast.error("Warning: Could not decrypt your E2EE messages on this device.");
+          }
+        }
       }
 
       // Store the exact 24-character string securely

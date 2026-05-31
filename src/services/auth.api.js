@@ -5,6 +5,12 @@ export const loginUser = async (data) => {
   return res.data;
 };
 
+// ── salts ──
+export const fetchSalts = async (identifier = "") => {
+  const res = await api.get(identifier ? `/auth/salts?identifier=${encodeURIComponent(identifier)}` : `/auth/salts`);
+  return res.data;
+};
+
 // ── Registration OTP Flow ──
 export const sendRegistrationOtp = async (email) => {
   const res = await api.post("/auth/send-registration-otp", { email });
@@ -16,8 +22,8 @@ export const verifyRegistrationOtp = async (email, otp) => {
   return res.data;
 };
 
-export const registerUser = async ({ name, username, password, emailVerifiedToken }) => {
-  const res = await api.post("/auth/register", { name, username, password, emailVerifiedToken });
+export const registerUser = async (data) => {
+  const res = await api.post("/auth/register", data);
   return res.data;
 };
 
@@ -27,7 +33,7 @@ export const forgotPassword = async (email) => {
   return res.data;
 };
 
-export const resetPassword = async (email, otp, newPassword) => {
-  const res = await api.post("/auth/reset-password", { email, otp, newPassword });
+export const resetPassword = async (data) => {
+  const res = await api.post("/auth/reset-password", data);
   return res.data;
 };

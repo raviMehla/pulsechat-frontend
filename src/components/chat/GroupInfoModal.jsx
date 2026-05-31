@@ -9,9 +9,11 @@ import {
   addUserToGroup, 
   removeUserFromGroup, 
   leaveGroupChat,
-  deleteChat
+  deleteChat,
+  rotateGroupKeys
 } from "../../services/chat.api";
 import { Avatar } from "../ui/Avatar"; 
+import { useChat } from "../../context/ChatContext";
 import { getAvatarUrl } from "../../utils/getAvatarUrl";
 import { useConfirm } from "../../hooks/useConfirm";
 import ConfirmDialog from "../ui/ConfirmDialog";
@@ -19,6 +21,7 @@ import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 
 
 function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
+  const { encryptGroupKeyForUser, rotateGroupKeyPayload, cacheGroupKey } = useChat();
   const [groupName, setGroupName] = useState("");
   const [groupDesc, setGroupDesc] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -112,7 +115,21 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
     }
     try {
       setIsLoading(true);
-      await addUserToGroup(chat._id, user._id);
+
+      // 🔒 E2EE Encryption for the new user's slot
+      let encryptedKey = null;
+      let iv = null;
+      let keyVersion = null;
+      try {
+        const slot = await encryptGroupKeyForUser(chat, user);
+        encryptedKey = slot.encryptedKey;
+        iv = slot.iv;
+        keyVersion = slot.keyVersion;
+      } catch (e2eeErr) {
+        console.error("Failed to encrypt group key for new user:", e2eeErr);
+      }
+
+      await addUserToGroup(chat._id, user._id, encryptedKey, iv, keyVersion);
       setSearchQuery("");
       setSearchResults([]);
       toast.success(`${user.name} added successfully`);
@@ -134,6 +151,16 @@ function GroupInfoModal({ isOpen, onClose, chat, currentUserId }) {
         try {
           setIsLoading(true);
           await removeUserFromGroup(chat._id, user._id);
+
+          // 🔒 E2EE Key Rotation after user removal
+          try {
+            const rotation = await rotateGroupKeyPayload(chat, user._id);
+            await rotateGroupKeys(chat._id, rotation.encryptedGroupKeys);
+            await cacheGroupKey(chat._id, rotation.groupKeyHex);
+          } catch (e2eeErr) {
+            console.error("Failed to rotate group key after user removal:", e2eeErr);
+          }
+
           toast.success(`${user.name} removed successfully`);
         } catch (error) {
           toast.error(error.response?.data?.message || "Failed to remove user");

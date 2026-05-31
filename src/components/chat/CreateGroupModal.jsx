@@ -4,6 +4,7 @@ import { createGroupChat } from "../../services/chat.api";
 import { searchUsers } from "../../services/user.api";
 import toast from "react-hot-toast";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
+import { useChat } from "../../context/ChatContext";
 
 
 function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
@@ -16,6 +17,8 @@ function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
   const [groupAvatar, setGroupAvatar] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [description, setDescription] = useState("");
+
+  const { generateGroupE2EEPayload, cacheGroupKey } = useChat();
 
   // Escape key light-dismiss
   useKeyboardShortcuts([
@@ -74,8 +77,26 @@ function CreateGroupModal({ isOpen, onClose, onGroupCreated }) {
     }
     try {
       setIsLoading(true);
+      
+      // 🔒 E2EE: Generate Group Symmetric Key & Encrypt for each selected member
+      let encryptedGroupKeys = null;
+      let groupKeyHex = null;
+      try {
+        const payload = await generateGroupE2EEPayload(selectedUsers);
+        encryptedGroupKeys = payload.encryptedGroupKeys;
+        groupKeyHex = payload.groupKeyHex;
+      } catch (e2eeErr) {
+        console.error("Failed to generate group E2EE payload:", e2eeErr);
+      }
+
       const userIds = selectedUsers.map(u => u._id);
-      const newGroup = await createGroupChat(groupName, userIds, groupAvatar, description);
+      const newGroup = await createGroupChat(groupName, userIds, groupAvatar, description, encryptedGroupKeys);
+      
+      // Cache the key for the newly created group immediately
+      if (newGroup && groupKeyHex) {
+        await cacheGroupKey(newGroup._id, groupKeyHex);
+      }
+
       onGroupCreated(newGroup);
       setGroupName("");
       setSelectedUsers([]);

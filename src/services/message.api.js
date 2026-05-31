@@ -12,11 +12,13 @@ export const getMessages = async (chatId, cursor = null) => {
 };
 
 // Send a text message
-export const sendMessage = async ({ chatId, content, replyTo }) => {
+export const sendMessage = async ({ chatId, content, replyTo, iv, isEncrypted }) => {
   const res = await api.post(`/message`, {
     chatId,
     content,
-    replyTo // 🔥 NEW: Pass reply ID
+    replyTo,
+    iv,
+    isEncrypted
   });
   return res.data?.data || res.data;
 };

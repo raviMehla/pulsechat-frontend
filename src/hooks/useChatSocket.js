@@ -14,7 +14,8 @@ export const useChatSocket = ({
   setChatName,
   setParticipantCount,
   setActiveChatData,
-  navigate
+  navigate,
+  decryptMessagePayload
 }) => {
   const readReceiptTimeoutRef = useRef(null);
   useEffect(() => {
@@ -34,26 +35,29 @@ export const useChatSocket = ({
     // ==========================================
     // Real-Time Listeners
     // ==========================================
-    const onMessageReceived = (msg) => {
+    const onMessageReceived = async (msg) => {
       const msgChatId = msg.chat?._id || msg.chat;
       if (String(msgChatId) !== String(chatId)) return;
 
+      // Decrypt message client-side
+      const decryptedMsg = await decryptMessagePayload(msg);
+
       setMessages((prev) => {
-        const exists = prev.some((m) => String(m._id) === String(msg._id));
+        const exists = prev.some((m) => String(m._id) === String(decryptedMsg._id));
         if (exists) return prev;
 
         // 🛡️ Optimistic UI Deduplication: If the message is from ourselves, see if we can replace a pending message
-        const senderId = msg.sender?._id || msg.sender;
+        const senderId = decryptedMsg.sender?._id || decryptedMsg.sender;
         if (String(senderId) === String(currentUserId)) {
-          const pendingIdx = prev.findIndex(m => m.status === "pending" && m.content === msg.content);
+          const pendingIdx = prev.findIndex(m => m.status === "pending" && m.content === decryptedMsg.content);
           if (pendingIdx !== -1) {
-            return prev.map((m, idx) => idx === pendingIdx ? msg : m);
+            return prev.map((m, idx) => idx === pendingIdx ? decryptedMsg : m);
           }
         }
-        return [...prev, msg];
+        return [...prev, decryptedMsg];
       });
 
-      if (String(msg.sender?._id) !== String(currentUserId)) {
+      if (String(decryptedMsg.sender?._id) !== String(currentUserId)) {
         if (readReceiptTimeoutRef.current) {
           clearTimeout(readReceiptTimeoutRef.current);
         }
@@ -223,6 +227,7 @@ export const useChatSocket = ({
     };
   }, [
     chatId, currentUserId, navigate, setMessages, setIsTyping, 
-    setIsOnline, setChatName, setParticipantCount, setActiveChatData, otherUserIdRef
+    setIsOnline, setChatName, setParticipantCount, setActiveChatData, otherUserIdRef,
+    decryptMessagePayload
   ]); 
 };

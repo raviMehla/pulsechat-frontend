@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import toast from "react-hot-toast";
-import { sendRegistrationOtp, verifyRegistrationOtp, registerUser } from "../services/auth.api";
+import { sendRegistrationOtp, verifyRegistrationOtp, registerUser, fetchSalts } from "../services/auth.api";
+import { deriveFromPassword, generateECDHKeyPair, exportPublicKey, encryptPrivateKeyForBackup, deriveRecoveryKey } from "../services/crypto";
+import { storePrivateKey } from "../services/keystore";
 
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -128,6 +130,7 @@ function StepIndicator({ currentStep }) {
     { n: 1, label: "Email" },
     { n: 2, label: "Verify" },
     { n: 3, label: "Details" },
+    { n: 4, label: "Backup" },
   ];
 
   return (
@@ -191,6 +194,7 @@ function Register() {
   // Step 3
   const [formData, setFormData] = useState({ name: "", username: "", password: "", confirmPassword: "" });
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [mnemonic, setMnemonic] = useState("");
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -232,27 +236,82 @@ function Register() {
     }
   };
 
-  // ── Step 3: Create Account ──
-  const handleRegister = async (e) => {
+  // ── Step 3: Complete Details (Generate Mnemonic & go to Step 4) ──
+  const handleDetailsSubmit = (e) => {
     e.preventDefault();
     if (!agreedToTerms) return toast.error("You must agree to the Terms & Conditions.");
     if (formData.password !== formData.confirmPassword) return toast.error("Passwords do not match.");
     if (formData.password.length < 6) return toast.error("Password must be at least 6 characters long.");
 
+    // Select 12 random words from simple dictionary to simulate a BIP-39 mnemonic phrase
+    const wordList = [
+      "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse", "access", "accident",
+      "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act", "action", "actor", "actress", "actual",
+      "adapt", "add", "addict", "address", "adjust", "admit", "adult", "advice", "advise", "aerobic", "affair", "afford",
+      "afraid", "again", "age", "agent", "agree", "ahead", "aim", "air", "airport", "aisle", "alarm", "album",
+      "alcohol", "alert", "alien", "all", "alley", "allow", "almost", "alone", "alpha", "already", "also", "alter",
+      "always", "amateur", "amazing", "among", "amount", "amused", "analyst", "anchor", "ancient", "anger", "angle", "angry"
+    ];
+    const selectedWords = [];
+    for (let i = 0; i < 12; i++) {
+      selectedWords.push(wordList[Math.floor(Math.random() * wordList.length)]);
+    }
+    setMnemonic(selectedWords.join(" "));
+    setStep(4);
+  };
+
+  // ── Step 4: Final Register with Cryptographic Key Generation ──
+  const handleRegister = async (e) => {
+    e.preventDefault();
     try {
       setIsLoading(true);
-      await registerUser({
+
+      // 1. Fetch random key salts from the server
+      const saltsRes = await fetchSalts();
+      const { authSalt, keySalt } = saltsRes;
+
+      // 2. Derive KEK (Key Encryption Key) and Auth Token from password
+      const { authToken, kek } = await deriveFromPassword(formData.password, authSalt, keySalt);
+
+      // 3. Generate ECDH P-256 Keypair for E2EE chats
+      const keyPair = await generateECDHKeyPair();
+      const publicKeyHex = await exportPublicKey(keyPair.publicKey);
+
+      // 4. Encrypt raw private key with KEK for database backup
+      const { encryptedPrivateKey, keyIv } = await encryptPrivateKeyForBackup(keyPair.privateKey, kek);
+
+      // 5. Encrypt raw private key with Recovery KEK derived from mnemonic
+      const recoveryKek = await deriveRecoveryKey(mnemonic, formData.username.toLowerCase());
+      const { encryptedPrivateKey: recoveryEncryptedKey, keyIv: recoveryKeyIv } = await encryptPrivateKeyForBackup(keyPair.privateKey, recoveryKek);
+
+      // 6. Send E2EE payload to register endpoint
+      const res = await registerUser({
         name: formData.name,
         username: formData.username,
-        password: formData.password,
+        authToken,
         emailVerifiedToken,
+        authSalt,
+        keySalt,
+        publicKey: publicKeyHex,
+        encryptedPrivateKey,
+        keyIv,
+        recoveryEncryptedKey,
+        recoveryKeyIv
       });
+
+      // 7. Store the raw private key locally in IndexedDB
+      const userId = res.user?.id || res.user?._id || res.id || res._id;
+      if (userId) {
+        await storePrivateKey(userId, keyPair.privateKey, publicKeyHex);
+      }
+
       toast.success("Account created! Welcome to PulseChat 🎉");
       navigate("/login");
     } catch (error) {
+      console.error("E2EE Registration Error:", error);
       const msg = error.response?.data?.message || "Registration failed. Please try again.";
       toast.error(msg);
-      // If token expired, push back to step 1
+      // If verification token expired, push back to beginning
       if (msg.toLowerCase().includes("verif") || msg.toLowerCase().includes("token")) {
         setStep(1);
         setOtp("");
@@ -267,6 +326,7 @@ function Register() {
     { title: "Create an Account", subtitle: "Enter your email to get started." },
     { title: "Verify Your Email", subtitle: `We sent a 6-digit code to ${email || "your email"}.` },
     { title: "Complete Your Profile", subtitle: "Almost there! Set up your account details." },
+    { title: "Your E2EE Recovery Kit", subtitle: "Save these 12 words. You will need them to recover your messages if you forget your password." }
   ];
 
   const { title, subtitle } = stepTitles[step - 1];
@@ -353,7 +413,7 @@ function Register() {
 
         {/* ── Step 3: Account Details ── */}
         {step === 3 && (
-          <form onSubmit={handleRegister} className="space-y-4">
+          <form onSubmit={handleDetailsSubmit} className="space-y-4">
             {/* Verified email badge */}
             <div className="flex items-center gap-2 bg-accent/10 border border-accent/30 rounded-lg px-3 py-2">
               <svg className="w-4 h-4 text-accent shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -424,15 +484,71 @@ function Register() {
               className="w-full py-3 mt-1 text-base"
               disabled={isLoading}
             >
+              Continue to E2EE Setup →
+            </Button>
+          </form>
+        )}
+
+        {/* ── Step 4: E2EE Recovery Kit ── */}
+        {step === 4 && (
+          <form onSubmit={handleRegister} className="space-y-6 animate-fadeIn">
+            <div className="bg-surfaceSubtle border border-borderSubtle rounded-xl p-4">
+              <div className="grid grid-cols-3 gap-2">
+                {mnemonic.split(" ").map((word, index) => (
+                  <div key={index} className="flex items-center gap-1.5 bg-background border border-borderSubtle px-2.5 py-1.5 rounded-lg select-all">
+                    <span className="text-[10px] text-textMuted font-bold select-none">{index + 1}.</span>
+                    <span className="text-sm font-semibold tracking-wide text-textPrimary">{word}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1 py-2.5 text-sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(mnemonic);
+                  toast.success("Recovery kit copied to clipboard!");
+                }}
+              >
+                Copy to Clipboard 📋
+              </Button>
+            </div>
+
+            <div className="text-xs bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-lg p-3.5 leading-relaxed flex gap-2.5">
+              <svg className="w-5 h-5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3Z" />
+              </svg>
+              <span>
+                <strong>Warning:</strong> We cannot recover this phrase for you. If you lose it and forget your password, your past messages will be permanently lost.
+              </span>
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              className="w-full py-3 text-base font-semibold"
+              disabled={isLoading}
+            >
               {isLoading ? (
-                <span className="flex items-center gap-2">
+                <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                  Creating Account...
+                  Generating Keys & Creating Account...
                 </span>
               ) : (
-                "Create My Account 🚀"
+                "I Have Saved My Recovery Kit →"
               )}
             </Button>
+
+            <button
+              type="button"
+              onClick={() => { setStep(3); }}
+              className="w-full text-center text-xs text-textMuted hover:text-textPrimary transition-all mt-1"
+            >
+              ← Go back & edit details
+            </button>
           </form>
         )}
 

@@ -89,7 +89,7 @@ function ChatView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const currentUserId = localStorage.getItem("userId");
-  const { setActiveChat } = useChat();
+  const { setActiveChat, decryptMessagePayload, encryptMessagePayload, encryptGroupMessagePayload } = useChat();
 
   // Local State
   const [messages, setMessages]   = useState([]);
@@ -160,11 +160,17 @@ function ChatView() {
         }
         const data = await getMessages(id);
         const messagesData = data.messages || [];
-        setMessages(messagesData);
+
+        // Decrypt messages client-side
+        const decryptedMsgs = await Promise.all(
+          messagesData.map(m => decryptMessagePayload(m))
+        );
+
+        setMessages(decryptedMsgs);
         setNextCursor(data.nextCursor || null); // 🛡️ Capture cursor
         await markChatAsRead(id);
         await localforage.setItem(`messages_${id}`, {
-          messages: messagesData,
+          messages: decryptedMsgs,
           nextCursor: data.nextCursor || null
         });
       } catch (err) {
@@ -184,7 +190,11 @@ function ChatView() {
         }
         const cachedData = await localforage.getItem(`messages_${id}`);
         if (cachedData && cachedData.messages) {
-          setMessages(cachedData.messages);
+          // Decrypt cached messages
+          const decryptedCached = await Promise.all(
+            cachedData.messages.map(m => decryptMessagePayload(m))
+          );
+          setMessages(decryptedCached);
           setNextCursor(cachedData.nextCursor || null);
           setIsInitialLoading(false);
         }
@@ -376,8 +386,14 @@ function ChatView() {
       setIsFetchingMore(true);
 
       const data = await getMessages(id, nextCursor);
+      const messagesData = data.messages || [];
+
+      // Decrypt historical messages
+      const decryptedMsgs = await Promise.all(
+        messagesData.map(m => decryptMessagePayload(m))
+      );
       
-      setMessages(prev => [...(data.messages || []), ...prev]);
+      setMessages(prev => [...decryptedMsgs, ...prev]);
       setNextCursor(data.nextCursor || null);
     } catch (error) {
       console.error("Failed to load older messages", error);
@@ -386,7 +402,7 @@ function ChatView() {
       isFetchingMoreRef.current = false;
       setIsFetchingMore(false);
     }
-  }, [id, nextCursor]);
+  }, [id, nextCursor, decryptMessagePayload]);
 
   // ─────────────────────────────────────────────
   // 2️⃣ Attach Modular Socket Engine
@@ -401,7 +417,8 @@ function ChatView() {
     setChatName,
     setParticipantCount,
     setActiveChatData,
-    navigate
+    navigate,
+    decryptMessagePayload
   });
 
 
@@ -652,9 +669,48 @@ function ChatView() {
         setMessages(prev => [...prev, optimisticMsg]);
 
         try {
-          const sentData = await sendMessage({ content: textToSend, chatId: id, replyTo: optimisticMsg.replyTo?._id || null });
+          // Encrypt outgoing message
+          let contentToSend = textToSend;
+          let iv = null;
+          let isEncrypted = false;
+
+          if (isGroup) {
+            try {
+              const encrypted = await encryptGroupMessagePayload(textToSend, id);
+              contentToSend = encrypted.ciphertext;
+              iv = encrypted.iv;
+              isEncrypted = true;
+            } catch (encryptErr) {
+              console.error("Group encryption failed, falling back to plaintext:", encryptErr);
+            }
+          } else if (!isBroadcast) {
+            const otherUser = activeChatData?.users?.find(u => u && String(u._id || u) !== String(currentUserId));
+            const otherPublicKey = otherUser?.e2ee?.publicKey || otherUser?.publicKey;
+            if (otherPublicKey) {
+              try {
+                const encrypted = await encryptMessagePayload(textToSend, otherUser._id, otherPublicKey);
+                contentToSend = encrypted.ciphertext;
+                iv = encrypted.iv;
+                isEncrypted = true;
+              } catch (encryptErr) {
+                console.error("Encryption failed, falling back to plaintext:", encryptErr);
+              }
+            }
+          }
+
+          const sentData = await sendMessage({ 
+            content: contentToSend, 
+            chatId: id, 
+            replyTo: optimisticMsg.replyTo?._id || null,
+            iv,
+            isEncrypted
+          });
+
+          // Decrypt the sent message to show it in UI
+          const decryptedSentData = await decryptMessagePayload(sentData);
+
           // Swap temp optimistic message with actual DB message
-          setMessages(prev => prev.map(m => m._id === tempId ? { ...sentData, status: "sent" } : m));
+          setMessages(prev => prev.map(m => m._id === tempId ? { ...decryptedSentData, status: "sent" } : m));
         } catch (apiErr) {
           console.error("Optimistic send failed:", apiErr);
           setMessages(prev => prev.map(m => m._id === tempId ? { ...m, status: "failed" } : m));
