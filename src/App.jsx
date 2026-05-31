@@ -3,6 +3,7 @@ import { useEffect, lazy, Suspense } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import localforage from "localforage";
+import { useChat } from "./context/ChatContext";
 
 // Layouts & Security
 import AppLayout from "./components/common/AppLayout";
@@ -46,6 +47,7 @@ function App() {
   const currentUserId = localStorage.getItem("userId");
   const token = localStorage.getItem("token");
   const navigate = useNavigate();
+  const { activeChat, decryptMessagePayload } = useChat();
 
   // 🛡️ PWA Update Notification Listener
   const {
@@ -198,9 +200,50 @@ function App() {
         });
       };
 
+      const onMessageReceived = async (msg) => {
+        const msgChatId = msg.chat?._id || msg.chat;
+        const senderId = msg.sender?._id || msg.sender;
+        if (String(msgChatId) !== String(activeChat) && String(senderId) !== String(currentUserId)) {
+          const decryptedMsg = await decryptMessagePayload(msg);
+          let displayContent = "";
+          if (decryptedMsg.isEncrypted) {
+            displayContent = decryptedMsg.isDecrypted 
+              ? decryptedMsg.content 
+              : "🔒 Encrypted Message";
+          } else {
+            displayContent = decryptedMsg.content || "";
+          }
+
+          if (displayContent && displayContent.length > 50) {
+            displayContent = displayContent.slice(0, 50) + "...";
+          }
+
+          const senderName = decryptedMsg.sender?.name || "Someone";
+          toast((t) => (
+            <div className="flex flex-col gap-1 p-1 text-sm cursor-pointer" onClick={() => {
+              navigate(`/chat/${msgChatId}`);
+              toast.dismiss(t.id);
+            }}>
+              <p className="text-toastTitle font-bold text-accent">{senderName}</p>
+              <p className="text-xs text-textPrimary">{displayContent}</p>
+            </div>
+          ), {
+            duration: 4000,
+            icon: decryptedMsg.isEncrypted ? "🔒" : "💬",
+            style: {
+              background: '#131318',
+              color: '#FFFFFF',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '16px',
+            }
+          });
+        }
+      };
+
       socket.on("connect", onConnect);
       socket.on("disconnect", onDisconnect);
       socket.on("offline_missed_calls", onOfflineMissedCalls);
+      socket.on("message_received", onMessageReceived);
 
       // 🛡️ ARCHITECTURAL UPGRADE: The Mobile Foreground Resiliency Engine
       // Forces the socket to instantly reconnect the millisecond the user unlocks their phone
@@ -221,11 +264,12 @@ function App() {
         socket.off("connect", onConnect);
         socket.off("disconnect", onDisconnect);
         socket.off("offline_missed_calls", onOfflineMissedCalls);
+        socket.off("message_received", onMessageReceived);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
         disconnectSocket();
       };
     }
-  }, [currentUserId, token]); 
+  }, [currentUserId, token, activeChat, decryptMessagePayload, navigate]); 
 
   return (
     <>
