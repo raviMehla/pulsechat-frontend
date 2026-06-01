@@ -4,7 +4,7 @@ import { messaging } from "../config/firebase.js";
 // 2. Import the actual SDK functions directly from the firebase package
 import { getToken, onMessage } from "firebase/messaging"; 
 import { registerFcmToken } from "../services/user.api.js";
-import toast from "react-hot-toast"; // Used for proactive UI feedback when app is open
+// import toast from "react-hot-toast"; // Used for proactive UI feedback when app is open
 
 export const usePushNotifications = (currentUserId) => {
   useEffect(() => {
@@ -51,9 +51,11 @@ export const usePushNotifications = (currentUserId) => {
     const unsubscribe = onMessage(messaging, (payload) => {
       console.log("Received foreground message:", payload);
       
+      // Do not trigger a duplicate, un-decrypted toast in the foreground since the
+      // live socket connection already manages decrypted, custom-styled toast alerts.
+      /*
       const title = payload.notification?.title || "New Message";
       const body = payload.notification?.body || "You received a new message.";
-      
       toast(
         (t) => (
           <div className="flex flex-col gap-1 cursor-pointer" onClick={() => toast.dismiss(t.id)}>
@@ -67,6 +69,7 @@ export const usePushNotifications = (currentUserId) => {
           position: 'top-right'
         }
       );
+      */
     });
 
     // Cleanup listener on unmount to prevent memory leaks and duplicate toasts
